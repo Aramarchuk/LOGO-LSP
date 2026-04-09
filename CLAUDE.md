@@ -28,13 +28,13 @@ app/src/main/kotlin/logo/
 ├── lexer/
 │   ├── Token.kt                 # Token data class + TokenType enum (42+ types)
 │   └── Lexer.kt                 # Single-pass character scanner
-├── parser/                      # [TODO]
-│   ├── Ast.kt                   # Sealed AST hierarchy
-│   └── Parser.kt                # Recursive descent, two-pass
-├── analysis/                    # [TODO]
-│   ├── SymbolTable.kt           # Scoped symbol table
-│   ├── Analyzer.kt              # Semantic analysis + diagnostics
-│   └── BuiltinCommands.kt       # ~50 built-in commands with arities
+├── parser/
+│   ├── Ast.kt                   # Sealed AST hierarchy (20+ node types)
+│   └── Parser.kt                # Two-pass recursive descent parser
+├── analysis/
+│   ├── SymbolTable.kt           # Scoped symbol table [TODO]
+│   ├── Analyzer.kt              # Semantic analysis + diagnostics [TODO]
+│   └── BuiltinCommands.kt       # ~60 built-in commands with arities
 ├── lsp/                         # [TODO]
 │   ├── LogoLanguageServer.kt
 │   ├── LogoTextDocumentService.kt
@@ -65,12 +65,21 @@ java -jar app/build/libs/logo-lsp.jar   # start server (stdio)
 ## Implementation status
 
 - [x] Project skeleton & build system
-- [x] Lexer (Token.kt, Lexer.kt) + tests (30+ cases)
-- [ ] Built-in Commands Registry
-- [ ] Parser (AST + recursive descent)
+- [x] Lexer (Token.kt, Lexer.kt) + tests (30 cases)
+- [x] Built-in Commands Registry (~60 commands)
+- [x] Parser (AST + two-pass recursive descent) + tests (42 cases)
 - [ ] Symbol Table & Analyzer
 - [ ] LSP Core (DocumentManager, Server, Services)
 - [ ] LSP Features (SemanticTokens, GoToDeclaration, Diagnostics, Completion)
+
+## Parser design decisions
+
+- **Two-pass parsing**: Pass 1 scans `TO...END` blocks to learn procedure arities before parsing. This allows forward references (calling a procedure before its definition).
+- **Tight vs full expressions**: Reporter arguments in expression context use "tight" parsing (primaries/unary only, no infix operators). Statement-level command arguments use full expression parsing with operators. Example: `PRINT SUM 3 4 + 5` → `PRINT((SUM 3 4) + 5)`. This matches standard UCBLogo behavior.
+- **WHILE**: Both `WHILE [cond] [body]` and `WHILE cond [body]` are supported — disambiguated by whether the first token after WHILE is `[`.
+- **MAKE/LOCALMAKE**: Parsed as `VariableAssignment` when followed by a quoted word (`MAKE "x 5`), otherwise as a generic `CommandCall`.
+- **Unknown procedures**: Default to arity 0 at parse time; the analyzer will flag them.
+- **Error recovery**: On unexpected tokens, errors are recorded and the parser skips to the nearest NEWLINE/END/`]`/EOF. Boundary tokens (NEWLINE, EOF, `]`, `)`, END) are never consumed by expression parsing, preventing cascade errors.
 
 ## LOGO language specifics
 
