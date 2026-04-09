@@ -79,7 +79,7 @@ java -jar app/build/libs/logo-lsp.jar   # start server (stdio)
 - **WHILE**: Both `WHILE [cond] [body]` and `WHILE cond [body]` are supported — disambiguated by whether the first token after WHILE is `[`.
 - **MAKE/LOCALMAKE**: Parsed as `VariableAssignment` when followed by a quoted word (`MAKE "x 5`), otherwise as a generic `CommandCall`.
 - **Unknown procedures**: Default to arity 0 at parse time; the analyzer will flag them.
-- **Error recovery**: On unexpected tokens, errors are recorded and the parser skips to the nearest NEWLINE/END/`]`/EOF. Boundary tokens (NEWLINE, EOF, `]`, `)`, END) are never consumed by expression parsing, preventing cascade errors.
+- **Error recovery**: Errors are accumulated in a list (never thrown). Boundary tokens (NEWLINE, EOF, `]`, `)`, END) are never consumed by expression parsing, preventing cascade errors. Critical failures (e.g., missing procedure name after TO) trigger `recover()` which skips to the nearest NEWLINE/END/`]`/EOF. Minor failures (unexpected token at statement level) advance one token and continue.
 
 ## LOGO language specifics
 

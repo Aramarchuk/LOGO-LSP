@@ -25,20 +25,26 @@ class Parser(private val tokens: List<Token>) {
 
     private fun scanProcedureArities() {
         var i = 0
+        var bracketDepth = 0
         while (i < tokens.size) {
-            if (tokens[i].type == TokenType.TO) {
-                i++
-                while (i < tokens.size && tokens[i].type in SKIP_TOKENS) i++
-                if (i < tokens.size && tokens[i].type == TokenType.WORD) {
-                    val name = tokens[i].text.uppercase(Locale.ROOT)
+            when (tokens[i].type) {
+                TokenType.LBRACKET -> bracketDepth++
+                TokenType.RBRACKET -> if (bracketDepth > 0) bracketDepth--
+                TokenType.TO -> if (bracketDepth == 0) {
                     i++
-                    var arity = 0
-                    while (i < tokens.size && tokens[i].type == TokenType.VARIABLE_REF) {
-                        arity++
+                    while (i < tokens.size && tokens[i].type in SKIP_TOKENS) i++
+                    if (i < tokens.size && tokens[i].type == TokenType.WORD) {
+                        val name = tokens[i].text.uppercase(Locale.ROOT)
                         i++
+                        var arity = 0
+                        while (i < tokens.size && tokens[i].type == TokenType.VARIABLE_REF) {
+                            arity++
+                            i++
+                        }
+                        procedureArities[name] = arity
                     }
-                    procedureArities[name] = arity
                 }
+                else -> {}
             }
             i++
         }
@@ -75,6 +81,8 @@ class Parser(private val tokens: List<Token>) {
 
     // -- Statement parsing --
 
+    private var topLevel = true
+
     private fun parseStatementList(endType: TokenType): List<Node> {
         val stmts = mutableListOf<Node>()
         skipNewlines()
@@ -89,7 +97,12 @@ class Parser(private val tokens: List<Token>) {
         while (current().type == TokenType.COMMENT) advance()
 
         return when (current().type) {
-            TokenType.TO -> parseProcedureDef()
+            TokenType.TO -> {
+                if (!topLevel) {
+                    errors += ParseError(current(), "Procedure definitions must be at top level")
+                }
+                parseProcedureDef()
+            }
             TokenType.REPEAT -> parseRepeat()
             TokenType.IF -> parseIf(hasElse = false)
             TokenType.IFELSE -> parseIf(hasElse = true)
@@ -125,7 +138,10 @@ class Parser(private val tokens: List<Token>) {
             params += advance()
         }
         skipNewlines()
+        val wasTopLevel = topLevel
+        topLevel = false
         val body = parseStatementList(TokenType.END)
+        topLevel = wasTopLevel
         if (current().type == TokenType.END) {
             advance()
         } else {
@@ -235,7 +251,10 @@ class Parser(private val tokens: List<Token>) {
         }
         advance() // skip [
         skipNewlines()
+        val wasTopLevel = topLevel
+        topLevel = false
         val stmts = parseStatementList(TokenType.RBRACKET)
+        topLevel = wasTopLevel
         if (current().type == TokenType.RBRACKET) {
             advance()
         } else {
