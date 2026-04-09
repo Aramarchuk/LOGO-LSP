@@ -499,4 +499,16 @@ class ParserTest {
         assertEquals("FD", call.nameToken.text)
         assertEquals(".5", (call.args[0] as NumberLiteral).token.text)
     }
+
+    @Test
+    fun `nested procedure definition is an error`() {
+        val result = parse("TO outer\nTO inner\nEND\nEND")
+        assertTrue(result.errors.any { "top level" in it.message })
+    }
+
+    @Test
+    fun `procedure inside block is an error`() {
+        val result = parse("REPEAT 4 [TO bad\nEND]")
+        assertTrue(result.errors.any { "top level" in it.message })
+    }
 }
