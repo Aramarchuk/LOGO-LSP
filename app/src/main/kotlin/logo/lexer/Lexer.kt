@@ -175,7 +175,7 @@ class Lexer(private val source: String) {
     }
 
     private fun Char.isWordChar(): Boolean =
-        isLetterOrDigit() || this == '_' || this == '.' || this == '?'
+        isLetterOrDigit() || this == '_' || this == '?'
 
     private fun Char.isDelimiter(): Boolean = this in " \t\n\r[]();+-*/=<>:"
 }
