@@ -28,7 +28,7 @@ class Parser(private val tokens: List<Token>) {
         while (i < tokens.size) {
             if (tokens[i].type == TokenType.TO) {
                 i++
-                while (i < tokens.size && tokens[i].type == TokenType.NEWLINE) i++
+                while (i < tokens.size && tokens[i].type in SKIP_TOKENS) i++
                 if (i < tokens.size && tokens[i].type == TokenType.WORD) {
                     val name = tokens[i].text.uppercase(Locale.ROOT)
                     i++
@@ -278,7 +278,7 @@ class Parser(private val tokens: List<Token>) {
 
     private fun parseAddSub(): Node {
         var left = parseMulDiv()
-        while (current().type in setOf(TokenType.PLUS, TokenType.MINUS)) {
+        while (current().type in ADDITIVE_OPS) {
             val op = advance()
             left = BinaryExpr(left, op, parseMulDiv())
         }
@@ -287,7 +287,7 @@ class Parser(private val tokens: List<Token>) {
 
     private fun parseMulDiv(): Node {
         var left = parseUnary()
-        while (current().type in setOf(TokenType.STAR, TokenType.SLASH)) {
+        while (current().type in MULTIPLICATIVE_OPS) {
             val op = advance()
             left = BinaryExpr(left, op, parseUnary())
         }
@@ -382,6 +382,9 @@ class Parser(private val tokens: List<Token>) {
     }
 
     companion object {
+        private val SKIP_TOKENS = setOf(TokenType.NEWLINE, TokenType.COMMENT)
+        private val ADDITIVE_OPS = setOf(TokenType.PLUS, TokenType.MINUS)
+        private val MULTIPLICATIVE_OPS = setOf(TokenType.STAR, TokenType.SLASH)
         private val COMPARISON_OPS = setOf(
             TokenType.EQ, TokenType.LT, TokenType.GT,
             TokenType.LTE, TokenType.GTE, TokenType.NEQ,
