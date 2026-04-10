@@ -17,7 +17,7 @@ class Parser(private val tokens: List<Token>) {
     fun parse(): ParseResult {
         scanProcedureArities()
         pos = 0
-        val statements = parseStatementList(TokenType.EOF)
+        val statements = parseStatementList(TokenType.EOF, topLevel = true)
         return ParseResult(Program(statements), errors.toList())
     }
 
@@ -81,19 +81,17 @@ class Parser(private val tokens: List<Token>) {
 
     // -- Statement parsing --
 
-    private var topLevel = true
-
-    private fun parseStatementList(endType: TokenType): List<Node> {
+    private fun parseStatementList(endType: TokenType, topLevel: Boolean): List<Node> {
         val stmts = mutableListOf<Node>()
         skipNewlines()
         while (current().type != endType && current().type != TokenType.EOF) {
-            stmts += parseStatement()
+            stmts += parseStatement(topLevel)
             skipNewlines()
         }
         return stmts
     }
 
-    private fun parseStatement(): Node {
+    private fun parseStatement(topLevel: Boolean): Node {
         while (current().type == TokenType.COMMENT) advance()
 
         return when (current().type) {
@@ -138,10 +136,7 @@ class Parser(private val tokens: List<Token>) {
             params += advance()
         }
         skipNewlines()
-        val wasTopLevel = topLevel
-        topLevel = false
-        val body = parseStatementList(TokenType.END)
-        topLevel = wasTopLevel
+        val body = parseStatementList(TokenType.END, topLevel = false)
         if (current().type == TokenType.END) {
             advance()
         } else {
@@ -251,10 +246,7 @@ class Parser(private val tokens: List<Token>) {
         }
         advance() // skip [
         skipNewlines()
-        val wasTopLevel = topLevel
-        topLevel = false
-        val stmts = parseStatementList(TokenType.RBRACKET)
-        topLevel = wasTopLevel
+        val stmts = parseStatementList(TokenType.RBRACKET, topLevel = false)
         if (current().type == TokenType.RBRACKET) {
             advance()
         } else {
