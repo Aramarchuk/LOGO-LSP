@@ -6,7 +6,6 @@ import org.eclipse.lsp4j.Position
 import logo.parser.Parser
 import logo.parser.*
 import logo.parser.walk
-import logo.parser.children
 import logo.parser.findNodePath
 import logo.analysis.BuiltinCommands
 import java.util.Locale
