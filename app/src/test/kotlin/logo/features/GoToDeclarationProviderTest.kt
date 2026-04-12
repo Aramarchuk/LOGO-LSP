@@ -119,4 +119,30 @@ class GoToDeclarationProviderTest {
         val target = findDecl(source, 3, 0)
         assertEquals(0 to 3, target)
     }
+
+    // -- Global fallback edge cases --
+
+    @Test
+    fun `localmake inside procedure not visible globally`() {
+        val source = "TO test\n  LOCALMAKE \"x 5\nEND\nPRINT :x"
+        // :x outside procedure — LOCALMAKE "x is local, should NOT be found
+        val target = findDecl(source, 3, 6)
+        assertNull(target)
+    }
+
+    @Test
+    fun `make inside procedure visible globally as fallback`() {
+        val source = "TO test\n  MAKE \"x 5\nEND\nPRINT :x"
+        // :x outside procedure — MAKE "x creates global at runtime, best-effort match
+        val target = findDecl(source, 3, 6)
+        assertEquals(1 to 7, target)
+    }
+
+    @Test
+    fun `local declaration inside procedure not visible globally`() {
+        val source = "TO test\n  LOCAL \"y\n  MAKE \"y 5\nEND\nPRINT :y"
+        // LOCAL "y makes it local — neither LOCAL nor MAKE should be found globally
+        val target = findDecl(source, 4, 6)
+        assertNull(target)
+    }
 }
