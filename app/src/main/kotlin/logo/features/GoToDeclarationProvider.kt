@@ -42,7 +42,7 @@ object GoToDeclarationProvider {
     /**
      * Create a Location object from a token and document URI.
      */
-    fun tokenToLocation(uri: String, token: Token): Location {
+    private fun tokenToLocation(uri: String, token: Token): Location {
         return Location(uri, Range(
             Position(token.line, token.column),
             Position(token.line, token.column + token.length),
@@ -93,15 +93,53 @@ object GoToDeclarationProvider {
             }
         }
 
-        // 4. Any MAKE anywhere in the program (best-effort)
+        // 4. Any MAKE anywhere in the program, excluding variables declared local in their procedure
+        val localNames = collectLocalNames(program)
         for (node in program.walk()) {
             if (node is VariableAssignment
-                && node.nameToken.text.removePrefix("\"").uppercase(Locale.ROOT) == name) {
+                && node.nameToken.text.removePrefix("\"").uppercase(Locale.ROOT) == name
+                && node !in localNames) {
                 return node.nameToken
             }
         }
 
         return null
+    }
+
+    /**
+     * Collect all VariableAssignments that assign to a variable declared local
+     * (via LOCAL or LOCALMAKE) in the same procedure, or are LOCALMAKE themselves.
+     */
+    private fun collectLocalNames(program: Program): Set<VariableAssignment> {
+        val localAssignments = mutableSetOf<VariableAssignment>()
+        for (node in program.walk()) {
+            if (node is ProcedureDefinition) {
+                // Find names declared local in this procedure
+                val declaredLocal = mutableSetOf<String>()
+                for (inner in node.walk()) {
+                    when (inner) {
+                        is VariableAssignment -> {
+                            if (inner.local) {
+                                declaredLocal += inner.nameToken.text.removePrefix("\"").uppercase(Locale.ROOT)
+                                localAssignments += inner
+                            }
+                        }
+                        is LocalDeclaration -> {
+                            inner.names.mapTo(declaredLocal) { it.text.removePrefix("\"").uppercase(Locale.ROOT) }
+                        }
+                        else -> {}
+                    }
+                }
+                // Mark any MAKE to a declared-local name as local too
+                for (inner in node.walk()) {
+                    if (inner is VariableAssignment && !inner.local
+                        && inner.nameToken.text.removePrefix("\"").uppercase(Locale.ROOT) in declaredLocal) {
+                        localAssignments += inner
+                    }
+                }
+            }
+        }
+        return localAssignments
     }
 
     /**
