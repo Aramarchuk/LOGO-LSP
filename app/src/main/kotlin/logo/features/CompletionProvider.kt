@@ -3,10 +3,18 @@ package logo.features
 import org.eclipse.lsp4j.CompletionItem
 import org.eclipse.lsp4j.CompletionItemKind
 import org.eclipse.lsp4j.Position
+import logo.parser.CommandCall
+import logo.parser.ForStatement
+import logo.parser.LocalDeclaration
+import logo.parser.Node
 import logo.parser.Parser
-import logo.parser.*
-import logo.parser.walk
+import logo.parser.ProcedureDefinition
+import logo.parser.Program
+import logo.parser.VariableAssignment
+import logo.parser.VariableRef
+import logo.parser.WordLiteral
 import logo.parser.findNodePath
+import logo.parser.walk
 import logo.analysis.BuiltinCommands
 import java.util.Locale
 
