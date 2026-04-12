@@ -91,8 +91,8 @@ class LogoTextDocumentService(private val documentManager: DocumentManager) : Te
 
     /**
      * Provide completions at the given position.
-     * After ':' → variable names
-     * Otherwise → builtin commands + user procedures + keywords
+     * Variable reference context → variable names
+     * Command/keyword context → builtin commands + user procedures + keywords
      */
     override fun completion(params: CompletionParams?): CompletableFuture<Either<List<CompletionItem>, CompletionList>> {
         return CompletableFuture.supplyAsync {
@@ -100,10 +100,9 @@ class LogoTextDocumentService(private val documentManager: DocumentManager) : Te
 
             val uri = params.textDocument.uri
             val position = params.position
-            val tokens = documentManager.getTokens(uri) ?: emptyList()
             val parseResult = documentManager.getParseResult(uri) ?: return@supplyAsync Either.forLeft(emptyList())
 
-            val completions = CompletionProvider.computeCompletions(position, tokens, parseResult)
+            val completions = CompletionProvider.computeCompletions(position, parseResult)
             Either.forLeft(completions)
         }
     }
