@@ -5,3 +5,4 @@
 be invoked often, consider a single walk that checks LOCAL/LOCALMAKE/MAKE in one pass (preserving precedence)
 to avoid repeated AST traversal on large procedures.
 5. Seems like end of the line also ends all brackets and parentheses.
+6. ":" itself doesn't really start any suggestion - that's not cool.

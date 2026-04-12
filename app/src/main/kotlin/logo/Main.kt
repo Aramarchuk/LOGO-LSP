@@ -7,5 +7,5 @@ fun main() {
     val server = LogoLanguageServer()
     val launcher = LSPLauncher.createServerLauncher(server, System.`in`, System.out)
     server.connect(launcher.remoteProxy)
-    launcher.startListening()
+    launcher.startListening().get()
 }
