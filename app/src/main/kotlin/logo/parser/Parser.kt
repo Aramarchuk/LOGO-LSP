@@ -88,6 +88,10 @@ class Parser(private val tokens: List<Token>) {
 
     // -- Span helpers --
 
+    private fun spanTo(start: Token, end: Token): Span {
+        return Span(start.line, start.column, end.line, end.column + end.length)
+    }
+
     private fun spanOf(token: Token): Span {
         return Span(token.line, token.column, token.line, token.column + token.length)
     }
@@ -166,23 +170,17 @@ class Parser(private val tokens: List<Token>) {
     private fun parseRepeat(): Node {
         val keyword = advance()
         val count = parseExpression()
-        val body = parseBlock()
-        val lastStmt = body.lastOrNull()
-        val endLine = lastStmt?.span?.endLine ?: keyword.line
-        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
-        return RepeatStatement(keyword, count, body, Span(keyword.line, keyword.column, endLine, endCol))
+        val block = parseBlock()
+        return RepeatStatement(keyword, count, block.statements, spanTo(keyword, block.endToken))
     }
 
     private fun parseIf(hasElse: Boolean): Node {
         val keyword = advance()
         val condition = parseExpression()
-        val thenBody = parseBlock()
-        val elseBody = if (hasElse) parseBlock() else null
-        val lastBody = elseBody ?: thenBody
-        val lastStmt = lastBody.lastOrNull()
-        val endLine = lastStmt?.span?.endLine ?: keyword.line
-        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
-        return IfStatement(keyword, condition, thenBody, elseBody, Span(keyword.line, keyword.column, endLine, endCol))
+        val thenBlock = parseBlock()
+        val elseBlock = if (hasElse) parseBlock() else null
+        val last = elseBlock?.endToken ?: thenBlock.endToken
+        return IfStatement(keyword, condition, thenBlock.statements, elseBlock?.statements, spanTo(keyword, last))
     }
 
     private fun parseWhile(): Node {
@@ -195,11 +193,8 @@ class Parser(private val tokens: List<Token>) {
         } else {
             parseExpression()
         }
-        val body = parseBlock()
-        val lastStmt = body.lastOrNull()
-        val endLine = lastStmt?.span?.endLine ?: keyword.line
-        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
-        return WhileStatement(keyword, condition, body, Span(keyword.line, keyword.column, endLine, endCol))
+        val block = parseBlock()
+        return WhileStatement(keyword, condition, block.statements, spanTo(keyword, block.endToken))
     }
 
     private fun parseFor(): Node {
@@ -210,30 +205,21 @@ class Parser(private val tokens: List<Token>) {
         val to = parseExpression()
         val step = if (current().type != TokenType.RBRACKET) parseExpression() else null
         expect(TokenType.RBRACKET, "Expected ']' after FOR control list")
-        val body = parseBlock()
-        val lastStmt = body.lastOrNull()
-        val endLine = lastStmt?.span?.endLine ?: keyword.line
-        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
-        return ForStatement(keyword, varName, from, to, step, body, Span(keyword.line, keyword.column, endLine, endCol))
+        val block = parseBlock()
+        return ForStatement(keyword, varName, from, to, step, block.statements, spanTo(keyword, block.endToken))
     }
 
     private fun parseForEach(): Node {
         val keyword = advance()
         val list = parseExpression()
-        val body = parseBlock()
-        val lastStmt = body.lastOrNull()
-        val endLine = lastStmt?.span?.endLine ?: keyword.line
-        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
-        return ForEachStatement(keyword, list, body, Span(keyword.line, keyword.column, endLine, endCol))
+        val block = parseBlock()
+        return ForEachStatement(keyword, list, block.statements, spanTo(keyword, block.endToken))
     }
 
     private fun parseForever(): Node {
         val keyword = advance()
-        val body = parseBlock()
-        val lastStmt = body.lastOrNull()
-        val endLine = lastStmt?.span?.endLine ?: keyword.line
-        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
-        return ForeverStatement(keyword, body, Span(keyword.line, keyword.column, endLine, endCol))
+        val block = parseBlock()
+        return ForeverStatement(keyword, block.statements, spanTo(keyword, block.endToken))
     }
 
     private fun parseOutput(): Node {
@@ -282,20 +268,23 @@ class Parser(private val tokens: List<Token>) {
 
     // -- Block parsing --
 
-    private fun parseBlock(): List<Node> {
+    private data class Block(val statements: List<Node>, val endToken: Token)
+
+    private fun parseBlock(): Block {
         if (current().type != TokenType.LBRACKET) {
             errors += ParseError(current(), "Expected '['")
-            return emptyList()
+            return Block(emptyList(), current())
         }
-        advance() // skip [
+        val openBracket = advance() // skip [
         skipNewlines()
         val stmts = parseStatementList(TokenType.RBRACKET, topLevel = false)
-        if (current().type == TokenType.RBRACKET) {
+        val endToken = if (current().type == TokenType.RBRACKET) {
             advance()
         } else {
             errors += ParseError(current(), "Expected ']'")
+            current()
         }
-        return stmts
+        return Block(stmts, endToken)
     }
 
     // -- Expression parsing (full, used for statement-level command args) --
