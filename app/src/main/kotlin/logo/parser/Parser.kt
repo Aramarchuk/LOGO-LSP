@@ -275,7 +275,7 @@ class Parser(private val tokens: List<Token>) {
             errors += ParseError(current(), "Expected '['")
             return Block(emptyList(), current())
         }
-        val openBracket = advance() // skip [
+        advance() // skip [
         skipNewlines()
         val stmts = parseStatementList(TokenType.RBRACKET, topLevel = false)
         val endToken = if (current().type == TokenType.RBRACKET) {
