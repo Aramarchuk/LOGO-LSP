@@ -15,7 +15,7 @@ object CompletionProvider {
     private val KEYWORDS = listOf(
         "TO", "END", "IF", "IFELSE", "REPEAT", "WHILE",
         "FOR", "FOREACH", "FOREVER", "MAKE", "LOCALMAKE",
-        "LOCAL", "OUTPUT", "STOP",
+        "LOCAL", "OUTPUT", "OP", "STOP",
     )
 
     fun computeCompletions(position: Position, parseResult: Parser.ParseResult): List<CompletionItem> {
