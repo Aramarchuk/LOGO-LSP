@@ -32,7 +32,7 @@ object GoToDeclarationProvider {
         val deepest = path.firstOrNull()
         val declToken: Token? = when (deepest) {
             is VariableRef -> findVariableDeclaration(deepest, path)
-            is CommandCall -> findProcedureDeclaration(deepest.nameToken, path)
+            is CommandCall -> findProcedureDeclaration(deepest.nameToken, parseResult.program)
             else -> null
         }
 
@@ -145,10 +145,8 @@ object GoToDeclarationProvider {
     /**
      * Find where a procedure is defined (TO name ...).
      */
-    private fun findProcedureDeclaration(nameToken: Token, reversedPath: List<Node>): Token? {
+    private fun findProcedureDeclaration(nameToken: Token, program: Program): Token? {
         val name = nameToken.text.uppercase(Locale.ROOT)
-        val program = reversedPath.filterIsInstance<Program>().firstOrNull() ?: return null
-
         return program.walk()
             .filterIsInstance<ProcedureDefinition>()
             .firstOrNull { it.nameToken.text.uppercase(Locale.ROOT) == name }
