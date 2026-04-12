@@ -41,7 +41,7 @@ app/src/main/kotlin/logo/
 │   ├── LogoWorkspaceService.kt  # Minimal no-op
 │   └── DocumentManager.kt       # Document state + reparse pipeline
 └── features/
-    ├── SemanticTokensProvider.kt # Token type mapping (stub — not yet implemented)
+    ├── SemanticTokensProvider.kt # Lexer tokens → delta-encoded LSP semantic tokens
     ├── GoToDeclarationProvider.kt # Variable/procedure → definition location
     ├── DiagnosticsProvider.kt    # ParseError → LSP Diagnostic
     └── CompletionProvider.kt     # Context-aware completion (scoped variables, builtins, keywords)
