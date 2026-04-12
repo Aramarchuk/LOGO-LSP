@@ -52,9 +52,9 @@ object CompletionProvider {
                 completions += commandCompletion(cmd.name, cmd.arity)
             }
         }
-        for (procName in collectProcedures(program)) {
-            if (matchesPrefix(procName, prefix)) {
-                completions += commandCompletion(procName, 0)
+        for ((name, arity) in collectProcedures(program)) {
+            if (matchesPrefix(name, prefix)) {
+                completions += commandCompletion(name, arity)
             }
         }
         for (keyword in KEYWORDS) {
@@ -73,6 +73,7 @@ object CompletionProvider {
         for (node in path) {
             when (node) {
                 is Program -> {
+                    // Global variables (top-level MAKE, not inside procedures)
                     for (stmt in node.statements) {
                         if (stmt is VariableAssignment) {
                             variables += stmt.nameToken.text.removePrefix("\"")
@@ -81,10 +82,11 @@ object CompletionProvider {
                 }
                 is ProcedureDefinition -> {
                     node.params.mapTo(variables) { it.text.removePrefix(":") }
-                    for (stmt in node.body) {
-                        when (stmt) {
-                            is VariableAssignment -> variables += stmt.nameToken.text.removePrefix("\"")
-                            is LocalDeclaration -> stmt.names.mapTo(variables) { it.text.removePrefix("\"") }
+                    // Walk entire procedure body to find variables in nested blocks
+                    for (inner in node.walk()) {
+                        when (inner) {
+                            is VariableAssignment -> variables += inner.nameToken.text.removePrefix("\"")
+                            is LocalDeclaration -> inner.names.mapTo(variables) { it.text.removePrefix("\"") }
                             else -> {}
                         }
                     }
@@ -96,11 +98,11 @@ object CompletionProvider {
         return variables
     }
 
-    private fun collectProcedures(program: Program): Set<String> {
+    private fun collectProcedures(program: Program): List<Pair<String, Int>> {
         return program.walk()
             .filterIsInstance<ProcedureDefinition>()
-            .map { it.nameToken.text }
-            .toSet()
+            .map { it.nameToken.text to it.params.size }
+            .toList()
     }
 
     // -- CompletionItem builders --
