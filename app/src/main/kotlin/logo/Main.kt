@@ -1,5 +1,11 @@
 package logo
 
+import logo.lsp.LogoLanguageServer
+import org.eclipse.lsp4j.launch.LSPLauncher
+
 fun main() {
-    System.err.println("LOGO LSP Server starting...")
+    val server = LogoLanguageServer()
+    val launcher = LSPLauncher.createServerLauncher(server, System.`in`, System.out)
+    server.connect(launcher.remoteProxy)
+    launcher.startListening()
 }

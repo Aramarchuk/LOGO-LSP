@@ -7,85 +7,41 @@ import logo.lexer.Token
 import logo.parser.Parser
 import logo.features.DiagnosticsProvider
 
-/**
- * Manages document state: text, tokens, and parse results.
- * Handles lexing, parsing, and diagnostic publishing.
- */
-class DocumentManager(private val languageClient: LanguageClient?) {
+class DocumentManager {
 
-    /**
-     * State of a single document.
-     */
     private data class DocumentState(
-        val uri: String,
         val text: String,
         val tokens: List<Token>,
         val parseResult: Parser.ParseResult,
     )
 
     private val documents = mutableMapOf<String, DocumentState>()
+    private var languageClient: LanguageClient? = null
 
-    /**
-     * Open a new document or replace existing one.
-     * Lex and parse the text, then publish diagnostics.
-     */
+    fun connect(client: LanguageClient) {
+        this.languageClient = client
+    }
+
     fun open(uri: String, text: String) {
         update(uri, text)
     }
 
-    /**
-     * Update document content (full document sync).
-     * Lex and parse the text, then publish diagnostics.
-     */
     fun update(uri: String, text: String) {
-        // Lex the document
-        val lexer = Lexer(text)
-        val tokens = lexer.tokenize()
-
-        // Parse the document
-        val parser = Parser(tokens)
-        val parseResult = parser.parse()
-
-        // Store document state
-        documents[uri] = DocumentState(uri, text, tokens, parseResult)
-
-        // Publish diagnostics
+        val tokens = Lexer(text).tokenize()
+        val parseResult = Parser(tokens).parse()
+        documents[uri] = DocumentState(text, tokens, parseResult)
         publishDiagnostics(uri, parseResult)
     }
 
-    /**
-     * Close a document (remove from cache).
-     */
     fun close(uri: String) {
         documents.remove(uri)
-        // Clear diagnostics for this document
         languageClient?.publishDiagnostics(PublishDiagnosticsParams(uri, emptyList()))
     }
 
-    /**
-     * Get the tokens for a document.
-     */
-    fun getTokens(uri: String): List<Token>? {
-        return documents[uri]?.tokens
-    }
+    fun getTokens(uri: String): List<Token>? = documents[uri]?.tokens
 
-    /**
-     * Get the parse result for a document.
-     */
-    fun getParseResult(uri: String): Parser.ParseResult? {
-        return documents[uri]?.parseResult
-    }
+    fun getParseResult(uri: String): Parser.ParseResult? = documents[uri]?.parseResult
 
-    /**
-     * Get the source text for a document.
-     */
-    fun getText(uri: String): String? {
-        return documents[uri]?.text
-    }
-
-    /**
-     * Publish diagnostics for a document.
-     */
     private fun publishDiagnostics(uri: String, parseResult: Parser.ParseResult) {
         val diagnostics = DiagnosticsProvider.computeDiagnostics(parseResult)
         languageClient?.publishDiagnostics(PublishDiagnosticsParams(uri, diagnostics))
