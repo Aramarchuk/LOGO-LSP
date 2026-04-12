@@ -72,9 +72,9 @@ java -jar app/build/libs/logo-lsp.jar   # start server (stdio)
 - [x] Diagnostics (parse errors → LSP diagnostics)
 - [x] Completion (scoped variables, builtins, keywords) + tests (12 cases)
 - [x] Go-to-declaration (variables + procedures) + tests (15 cases)
-- [ ] Semantic tokens (syntax highlighting)
-- [ ] Main.kt LSP launcher wiring
-- [ ] README.md
+- [x] Semantic tokens (syntax highlighting) + tests (12 cases)
+- [x] Main.kt LSP launcher wiring
+- [x] README.md
 
 ## Parser design decisions
 
