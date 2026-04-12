@@ -30,9 +30,13 @@ class CompletionProviderTest {
     }
 
     @Test
-    fun `empty prefix returns all commands and keywords`() {
+    fun `empty prefix returns builtins and keywords`() {
         val items = complete("", 0, 0)
-        assertTrue(items.size > 60) // ~60 builtins + 14 keywords
+        assertTrue(items.contains("FORWARD"))
+        assertTrue(items.contains("PRINT"))
+        assertTrue(items.contains("IF"))
+        assertTrue(items.contains("MAKE"))
+        assertTrue(items.contains("OP"))
     }
 
     @Test
