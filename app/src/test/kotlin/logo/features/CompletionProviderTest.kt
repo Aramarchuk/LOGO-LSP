@@ -128,7 +128,7 @@ class CompletionProviderTest {
     }
 
     @Test
-    fun `nested for only inner variable visible`() {
+    fun `nested for both inner and outer variables visible`() {
         val source = """
             TO test
               FOR [i 1 10] [
