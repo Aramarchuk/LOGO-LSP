@@ -166,3 +166,21 @@ fun Node.walk(): Sequence<Node> = sequence {
         yieldAll(child.walk())
     }
 }
+
+/** Find the path from root to the deepest node containing the given position. */
+fun Node.findNodePath(line: Int, col: Int): List<Node> {
+    if (!span.contains(line, col)) return emptyList()
+    for (child in children()) {
+        val childPath = child.findNodePath(line, col)
+        if (childPath.isNotEmpty()) return listOf(this) + childPath
+    }
+    return listOf(this)
+}
+
+/** Check if this span contains the given position. */
+fun Span.contains(line: Int, col: Int): Boolean {
+    if (line < startLine || line > endLine) return false
+    if (line == startLine && col < startCol) return false
+    if (line == endLine && col > endCol) return false
+    return true
+}

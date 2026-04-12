@@ -88,11 +88,6 @@ class Parser(private val tokens: List<Token>) {
 
     // -- Span helpers --
 
-    private fun spanFrom(startToken: Token): Span {
-        val endToken = if (pos > 0) tokens[pos - 1] else startToken
-        return Span(startToken.line, startToken.column, endToken.line, endToken.column + endToken.length)
-    }
-
     private fun spanOf(token: Token): Span {
         return Span(token.line, token.column, token.line, token.column + token.length)
     }
