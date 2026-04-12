@@ -41,44 +41,51 @@ object SemanticTokensProvider {
      * where deltaLine and deltaStartChar are relative to the previous token.
      */
     fun computeTokens(tokens: List<Token>): SemanticTokens {
-        // TODO: Implement token type classification based on TokenType
-        // For now, return empty (placeholder)
-        return SemanticTokens(emptyList())
+        val data = mutableListOf<Int>()
+        var prevLine = 0
+        var prevCol = 0
+        for (token in tokens) {
+            val typeIndex = tokenTypeToIndex(token.type)
+            if (typeIndex == -1) continue
+
+            val deltaLine = token.line - prevLine
+            val deltaCol = if (deltaLine == 0) token.column - prevCol else token.column
+
+            data += deltaLine
+            data += deltaCol
+            data += token.length
+            data += typeIndex
+            data += 0
+
+            prevLine = token.line
+            prevCol = token.column
+        }
+        return SemanticTokens(data)
     }
 
     /**
      * Map a token type to its semantic token type index.
      */
     private fun tokenTypeToIndex(tokenType: TokenType): Int {
-        return when (tokenType) {
-            // Keywords
+        val name = when (tokenType) {
             TokenType.TO, TokenType.END,
             TokenType.IF, TokenType.IFELSE,
             TokenType.REPEAT, TokenType.WHILE, TokenType.FOR, TokenType.FOREACH, TokenType.FOREVER,
             TokenType.OUTPUT, TokenType.STOP,
             TokenType.MAKE, TokenType.LOCALMAKE, TokenType.LOCAL,
-            TokenType.AND, TokenType.OR, TokenType.NOT -> 0 // "keyword"
+            TokenType.AND, TokenType.OR, TokenType.NOT -> "keyword"
 
-            // Builtin commands
-            TokenType.WORD -> 1 // "function" (will be filtered by semantic analyzer)
+            TokenType.WORD -> "function"
+            TokenType.VARIABLE_REF -> "variable"
+            TokenType.NUMBER, TokenType.BOOLEAN_TRUE, TokenType.BOOLEAN_FALSE -> "number"
+            TokenType.QUOTED_WORD -> "string"
+            TokenType.COMMENT -> "comment"
 
-            // Parameter (procedure parameter)
-            TokenType.VARIABLE_REF -> 3 // "variable"
-
-            // Literals
-            TokenType.NUMBER -> 4 // "number"
-            TokenType.QUOTED_WORD -> 5 // "string"
-            TokenType.BOOLEAN_TRUE, TokenType.BOOLEAN_FALSE -> 4 // "number"
-
-            // Comments
-            TokenType.COMMENT -> 6 // "comment"
-
-            // Operators
             TokenType.PLUS, TokenType.MINUS, TokenType.STAR, TokenType.SLASH,
-            TokenType.EQ, TokenType.LT, TokenType.GT, TokenType.LTE, TokenType.GTE, TokenType.NEQ -> 7 // "operator"
+            TokenType.EQ, TokenType.LT, TokenType.GT, TokenType.LTE, TokenType.GTE, TokenType.NEQ -> "operator"
 
-            // Structural tokens (not highlighted)
-            else -> -1 // Skip
+            else -> return -1
         }
+        return tokenTypes.indexOf(name)
     }
 }

@@ -7,18 +7,20 @@ LSP server for the LOGO programming language, written in Kotlin. Test assignment
 Implements the Language Server Protocol for LOGO — an educational language with turtle graphics. The server provides:
 1. **Semantic tokens** — syntax highlighting (keywords, commands, variables, numbers, comments)
 2. **Go-to-declaration** — navigate to procedure and variable definitions
-3. **Diagnostics** — errors and warnings (unknown procedures, wrong argument count, etc.)
+3. **Diagnostics** — parse error reporting
 4. **Completion** — context-aware autocompletion for commands and variables
 
 ## Architecture
 
 ```
-Source text → Lexer → Tokens → Parser → AST → Analyzer → LSP features
+Source text → Lexer → Tokens → Parser → AST (with spans) → LSP features
 ```
 
 - **Full document sync** — LOGO files are small; re-parse everything on each edit
 - **Two-pass parsing** — Pass 1: scan procedure arities; Pass 2: full parse (needed because LOGO parsing depends on arity)
 - **Case-insensitive** — all lookups use uppercase, original casing preserved for display
+- **AST spans** — every node tracks start/end position for precise cursor-to-node mapping
+- **AST traversal** — `Node.walk()` (depth-first), `Node.findNodePath(line, col)` (cursor → path from root)
 
 ## Project structure
 
@@ -29,22 +31,20 @@ app/src/main/kotlin/logo/
 │   ├── Token.kt                 # Token data class + TokenType enum (42+ types)
 │   └── Lexer.kt                 # Single-pass character scanner
 ├── parser/
-│   ├── Ast.kt                   # Sealed AST hierarchy (20+ node types)
+│   ├── Ast.kt                   # Sealed AST hierarchy (20+ node types) + walk/findNodePath
 │   └── Parser.kt                # Two-pass recursive descent parser
 ├── analysis/
-│   ├── SymbolTable.kt           # Scoped symbol table [TODO]
-│   ├── Analyzer.kt              # Semantic analysis + diagnostics [TODO]
 │   └── BuiltinCommands.kt       # ~60 built-in commands with arities
-├── lsp/                         # [TODO]
-│   ├── LogoLanguageServer.kt
-│   ├── LogoTextDocumentService.kt
-│   ├── LogoWorkspaceService.kt
-│   └── DocumentManager.kt
-└── features/                    # [TODO]
-    ├── SemanticTokensProvider.kt
-    ├── GoToDeclarationProvider.kt
-    ├── DiagnosticsProvider.kt
-    └── CompletionProvider.kt
+├── lsp/
+│   ├── LogoLanguageServer.kt    # LSP entry point, declares capabilities
+│   ├── LogoTextDocumentService.kt # Handles document events + feature dispatch
+│   ├── LogoWorkspaceService.kt  # Minimal no-op
+│   └── DocumentManager.kt       # Document state + reparse pipeline
+└── features/
+    ├── SemanticTokensProvider.kt # Token type mapping (stub — not yet implemented)
+    ├── GoToDeclarationProvider.kt # Variable/procedure → definition location
+    ├── DiagnosticsProvider.kt    # ParseError → LSP Diagnostic
+    └── CompletionProvider.kt     # Context-aware completion (scoped variables, builtins, keywords)
 ```
 
 ## Build & run
@@ -67,10 +67,14 @@ java -jar app/build/libs/logo-lsp.jar   # start server (stdio)
 - [x] Project skeleton & build system
 - [x] Lexer (Token.kt, Lexer.kt) + tests (30 cases)
 - [x] Built-in Commands Registry (~60 commands)
-- [x] Parser (AST + two-pass recursive descent) + tests (42 cases)
-- [ ] Symbol Table & Analyzer
-- [ ] LSP Core (DocumentManager, Server, Services)
-- [ ] LSP Features (SemanticTokens, GoToDeclaration, Diagnostics, Completion)
+- [x] Parser (AST + two-pass recursive descent) + tests (49 cases)
+- [x] LSP Core (DocumentManager, Server, Services)
+- [x] Diagnostics (parse errors → LSP diagnostics)
+- [x] Completion (scoped variables, builtins, keywords) + tests (12 cases)
+- [x] Go-to-declaration (variables + procedures) + tests (15 cases)
+- [ ] Semantic tokens (syntax highlighting)
+- [ ] Main.kt LSP launcher wiring
+- [ ] README.md
 
 ## Parser design decisions
 
@@ -89,3 +93,4 @@ java -jar app/build/libs/logo-lsp.jar   # start server (stdio)
 - Control structures: REPEAT, IF, IFELSE, WHILE, FOR, FOREACH, FOREVER
 - Comments: `;` to end of line
 - Quoted words: `"word` (string literals with no closing quote)
+- `LOCAL "x` / `LOCALMAKE "x` — explicit local variable declaration; without it, `MAKE` creates globals
