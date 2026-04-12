@@ -17,7 +17,10 @@ class SemanticTokensProviderTest {
         val data = result.data
         val legend = SemanticTokensProvider.tokenLegend().tokenTypes
 
+        assertEquals(0, data.size % 5, "Semantic token data size must be a multiple of 5")
+
         val highlights = mutableListOf<Triple<String, String, Int>>()
+        val lines = source.lines()
         var line = 0
         var col = 0
         var i = 0
@@ -26,12 +29,11 @@ class SemanticTokensProviderTest {
             val deltaCol = data[i + 1]
             val length = data[i + 2]
             val typeIndex = data[i + 3]
-            // data[i + 4] is modifiers, always 0
+            assertEquals(0, data[i + 4], "Modifiers should always be 0")
 
             line += deltaLine
             col = if (deltaLine > 0) deltaCol else col + deltaCol
 
-            val lines = source.lines()
             val text = if (line < lines.size && col + length <= lines[line].length) {
                 lines[line].substring(col, col + length)
             } else {
