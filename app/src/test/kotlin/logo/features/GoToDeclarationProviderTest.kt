@@ -131,11 +131,11 @@ class GoToDeclarationProviderTest {
     }
 
     @Test
-    fun `make inside procedure visible globally as fallback`() {
+    fun `make inside procedure not visible outside`() {
         val source = "TO test\n  MAKE \"x 5\nEND\nPRINT :x"
-        // :x outside procedure — MAKE "x creates global at runtime, best-effort match
+        // :x outside procedure — MAKE "x is inside another procedure, not reachable from path
         val target = findDecl(source, 3, 6)
-        assertEquals(1 to 7, target)
+        assertNull(target)
     }
 
     @Test
