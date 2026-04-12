@@ -7,7 +7,6 @@ import org.eclipse.lsp4j.TextDocumentSyncKind
 import org.eclipse.lsp4j.DeclarationRegistrationOptions
 import org.eclipse.lsp4j.CompletionOptions
 import org.eclipse.lsp4j.SemanticTokensWithRegistrationOptions
-import org.eclipse.lsp4j.SemanticTokensServerFull
 import org.eclipse.lsp4j.services.LanguageClient
 import org.eclipse.lsp4j.services.LanguageServer
 import org.eclipse.lsp4j.services.LanguageClientAware
@@ -19,79 +18,39 @@ import logo.features.SemanticTokensProvider
 
 class LogoLanguageServer : LanguageServer, LanguageClientAware {
 
-    private var languageClient: LanguageClient? = null
-    private var documentManager: DocumentManager? = null
-    private var textDocumentService: LogoTextDocumentService? = null
-    private var workspaceService: LogoWorkspaceService? = null
+    private val documentManager = DocumentManager()
+    private val textDocumentService = LogoTextDocumentService(documentManager)
+    private val workspaceService = LogoWorkspaceService()
 
-    /**
-     * Initialize the server and declare its capabilities.
-     * Declares support for:
-     * - Semantic tokens (syntax highlighting)
-     * - Declaration (go-to-definition)
-     * - Completion (autocompletion)
-     * - Full document sync (re-parse on every change)
-     */
     override fun initialize(params: InitializeParams?): CompletableFuture<InitializeResult> {
-        return CompletableFuture.supplyAsync {
-            documentManager = DocumentManager(languageClient)
-            textDocumentService = LogoTextDocumentService(documentManager!!)
-            workspaceService = LogoWorkspaceService()
+        val capabilities = ServerCapabilities()
 
-            val capabilities = ServerCapabilities()
+        capabilities.textDocumentSync = Either.forLeft(TextDocumentSyncKind.Full)
 
-            // Text document sync: full document (LOGO files are small)
-            capabilities.textDocumentSync = Either.forLeft(TextDocumentSyncKind.Full)
+        val semanticTokensOptions = SemanticTokensWithRegistrationOptions()
+        semanticTokensOptions.legend = SemanticTokensProvider.tokenLegend()
+        semanticTokensOptions.full = Either.forLeft(true)
+        capabilities.semanticTokensProvider = semanticTokensOptions
 
-            // Semantic tokens for syntax highlighting
-            val semanticTokensOptions = SemanticTokensWithRegistrationOptions()
-            semanticTokensOptions.legend = SemanticTokensProvider.tokenLegend()
-            semanticTokensOptions.full = Either.forLeft(true)
-            capabilities.semanticTokensProvider = semanticTokensOptions
+        capabilities.declarationProvider = Either.forRight(DeclarationRegistrationOptions())
+        capabilities.completionProvider = CompletionOptions()
 
-            // Go-to-declaration
-            capabilities.declarationProvider = Either.forRight(DeclarationRegistrationOptions())
-
-            // Completion
-            capabilities.completionProvider = CompletionOptions()
-
-            InitializeResult(capabilities)
-        }
+        return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
 
-    /**
-     * Shutdown the server.
-     */
     override fun shutdown(): CompletableFuture<Any> {
         return CompletableFuture.completedFuture(null)
     }
 
-    /**
-     * Exit the server process.
-     */
-    override fun exit() {
-        // No-op: LSP client will terminate the process
-    }
+    override fun exit() {}
 
-    /**
-     * Get the text document service for handling document-level operations.
-     */
-    override fun getTextDocumentService(): TextDocumentService {
-        return textDocumentService ?: throw IllegalStateException("TextDocumentService not initialized")
-    }
+    override fun getTextDocumentService(): TextDocumentService = textDocumentService
 
-    /**
-     * Get the workspace service for handling workspace-level operations.
-     */
-    override fun getWorkspaceService(): WorkspaceService {
-        return workspaceService ?: throw IllegalStateException("WorkspaceService not initialized")
-    }
+    override fun getWorkspaceService(): WorkspaceService = workspaceService
 
-    /**
-     * Connect to the language client.
-     * Store the client reference for sending diagnostics and other notifications later.
-     */
     override fun connect(client: LanguageClient?) {
-        this.languageClient = client
+        if (client != null) {
+            documentManager.connect(client)
+        }
     }
 }

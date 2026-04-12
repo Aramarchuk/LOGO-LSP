@@ -1,52 +1,69 @@
-# LOGO Language Server
+# LOGO-LSP
 
 LSP server for the LOGO programming language, written in Kotlin.
 
-## Status
+## Features
 
-Work in progress. Currently implemented:
+- **Syntax highlighting** — semantic tokens for keywords, commands, variables, numbers, strings, comments, operators
+- **Go-to-declaration** — Ctrl+Click on `:varname` jumps to MAKE/LOCAL/parameter definition; on procedure name jumps to TO definition
+- **Diagnostics** — parse errors shown as red squiggles
+- **Completion** — context-aware: `:` triggers variable names (scoped), otherwise suggests builtin commands, user procedures, keywords
 
-- **Lexer** — tokenizes LOGO source code into a stream of typed tokens (keywords, numbers, variable references, quoted words, operators, comments, etc.)
+## Build & run
 
-## Build & Run
-
-Requires JDK 17+. Gradle wrapper is included — no Gradle installation needed.
+Requires JDK 17+.
 
 ```bash
-# Run tests
-./gradlew test
-
-# Build fat JAR
-./gradlew shadowJar
-
-# Run the server
-java -jar app/build/libs/logo-lsp.jar
+./gradlew test          # run tests (118 cases)
+./gradlew shadowJar     # build fat JAR
+java -jar app/build/libs/logo-lsp.jar   # start LSP server (stdio)
 ```
+
+## Connect to an LSP client
+
+### IntelliJ (LSP4IJ plugin)
+
+1. Install the [LSP4IJ](https://plugins.jetbrains.com/plugin/23257-lsp4ij) plugin
+2. Settings → Languages & Frameworks → Language Servers → Add
+3. Command: `java -jar /path/to/logo-lsp.jar`
+4. File association: `*.logo`
+
+### VS Code
+
+Create a minimal extension or use a generic LSP client extension, pointing to `java -jar logo-lsp.jar` with stdio transport.
 
 ## Architecture
 
 ```
-source text → Lexer → tokens → [Parser → AST → Analyzer] → LSP features
+Source text → Lexer → Tokens → Parser → AST (with spans) → LSP features
 ```
 
-### Lexer (`logo.lexer`)
+- **Full document sync** — re-lex and re-parse on every edit (LOGO files are small)
+- **Two-pass parsing** — Pass 1 scans procedure arities, Pass 2 parses with known arities (needed for arity-dependent parsing)
+- **AST with spans** — every node tracks source position for cursor-to-node mapping
+- **Case-insensitive** — all lookups normalized to uppercase
 
-Single-pass character scanner that produces a flat list of `Token` objects. Each token carries its type, original text, line/column position, and length.
-
-Key design decisions:
-- **Case-insensitive keywords**: the lexer matches words like `TO`, `REPEAT`, `MAKE` against a keyword table (uppercased). Original casing is preserved in the token text.
-- **`:varname` is a single token** (type `VARIABLE_REF`) — the colon is part of the token, not a separate operator.
-- **`"word` is a single token** (type `QUOTED_WORD`) — LOGO uses a leading `"` with no closing quote. The word ends at the next delimiter.
-- **Comments** (`;` to end of line) are preserved as tokens — needed later for semantic highlighting, skipped by the parser.
-- **Newlines** are emitted as tokens — the parser uses them as statement separators.
-- **`-` is always `MINUS`** — the parser will decide whether it's unary negation or binary subtraction based on context.
-
-### Project layout
+## Project layout
 
 ```
 app/src/main/kotlin/logo/
-├── Main.kt                  # Entry point
-└── lexer/
-    ├── Token.kt             # Token data class + TokenType enum
-    └── Lexer.kt             # Tokenizer
+├── Main.kt                        # LSP stdio launcher
+├── lexer/
+│   ├── Token.kt                   # Token types + Token data class
+│   └── Lexer.kt                   # Single-pass scanner
+├── parser/
+│   ├── Ast.kt                     # AST nodes + walk() + findNodePath()
+│   └── Parser.kt                  # Two-pass recursive descent
+├── analysis/
+│   └── BuiltinCommands.kt         # ~60 builtin commands with arities
+├── lsp/
+│   ├── LogoLanguageServer.kt      # LSP entry point, capabilities
+│   ├── LogoTextDocumentService.kt # Document events + feature dispatch
+│   ├── LogoWorkspaceService.kt    # No-op
+│   └── DocumentManager.kt         # Document state + reparse pipeline
+└── features/
+    ├── SemanticTokensProvider.kt   # Tokens → delta-encoded semantic tokens
+    ├── GoToDeclarationProvider.kt  # Cursor position → definition location
+    ├── DiagnosticsProvider.kt      # Parse errors → LSP diagnostics
+    └── CompletionProvider.kt       # Scoped variable + command completion
 ```
