@@ -17,8 +17,15 @@ class Parser(private val tokens: List<Token>) {
     fun parse(): ParseResult {
         scanProcedureArities()
         pos = 0
+        val start = current()
         val statements = parseStatementList(TokenType.EOF, topLevel = true)
-        return ParseResult(Program(statements), errors.toList())
+        val span = if (statements.isEmpty()) {
+            Span(start.line, start.column, start.line, start.column)
+        } else {
+            val lastStmt = statements.last()
+            Span(start.line, start.column, lastStmt.span.endLine, lastStmt.span.endCol)
+        }
+        return ParseResult(Program(statements, span), errors.toList())
     }
 
     // -- Pass 1: scan TO...END to learn procedure arities --
@@ -79,6 +86,17 @@ class Parser(private val tokens: List<Token>) {
             ?: 0
     }
 
+    // -- Span helpers --
+
+    private fun spanFrom(startToken: Token): Span {
+        val endToken = if (pos > 0) tokens[pos - 1] else startToken
+        return Span(startToken.line, startToken.column, endToken.line, endToken.column + endToken.length)
+    }
+
+    private fun spanOf(token: Token): Span {
+        return Span(token.line, token.column, token.line, token.column + token.length)
+    }
+
     // -- Statement parsing --
 
     private fun parseStatementList(endType: TokenType, topLevel: Boolean): List<Node> {
@@ -109,7 +127,10 @@ class Parser(private val tokens: List<Token>) {
             TokenType.FOREACH -> parseForEach()
             TokenType.FOREVER -> parseForever()
             TokenType.OUTPUT -> parseOutput()
-            TokenType.STOP -> { StopStatement(advance()) }
+            TokenType.STOP -> {
+                val tok = advance()
+                StopStatement(tok, spanOf(tok))
+            }
             TokenType.MAKE -> parseMake(local = false)
             TokenType.LOCALMAKE -> parseMake(local = true)
             TokenType.LOCAL -> parseLocal()
@@ -118,7 +139,7 @@ class Parser(private val tokens: List<Token>) {
                 val tok = current()
                 errors += ParseError(tok, "Unexpected token: '${tok.text}'")
                 advance()
-                ErrorNode(tok, "Unexpected token")
+                ErrorNode(tok, "Unexpected token", spanOf(tok))
             }
         }
     }
@@ -129,7 +150,7 @@ class Parser(private val tokens: List<Token>) {
         val nameToken = expect(TokenType.WORD, "Expected procedure name after TO")
         if (nameToken.type != TokenType.WORD) {
             recover()
-            return ErrorNode(toToken, "Expected procedure name after TO")
+            return ErrorNode(toToken, "Expected procedure name after TO", spanOf(toToken))
         }
         val params = mutableListOf<Token>()
         while (current().type == TokenType.VARIABLE_REF) {
@@ -137,19 +158,24 @@ class Parser(private val tokens: List<Token>) {
         }
         skipNewlines()
         val body = parseStatementList(TokenType.END, topLevel = false)
-        if (current().type == TokenType.END) {
+        val endToken = if (current().type == TokenType.END) {
             advance()
         } else {
             errors += ParseError(current(), "Expected END to close procedure '${nameToken.text}'")
+            current()
         }
-        return ProcedureDefinition(toToken, nameToken, params, body)
+        val span = Span(toToken.line, toToken.column, endToken.line, endToken.column + endToken.length)
+        return ProcedureDefinition(toToken, nameToken, params, body, span)
     }
 
     private fun parseRepeat(): Node {
         val keyword = advance()
         val count = parseExpression()
         val body = parseBlock()
-        return RepeatStatement(keyword, count, body)
+        val lastStmt = body.lastOrNull()
+        val endLine = lastStmt?.span?.endLine ?: keyword.line
+        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
+        return RepeatStatement(keyword, count, body, Span(keyword.line, keyword.column, endLine, endCol))
     }
 
     private fun parseIf(hasElse: Boolean): Node {
@@ -157,7 +183,11 @@ class Parser(private val tokens: List<Token>) {
         val condition = parseExpression()
         val thenBody = parseBlock()
         val elseBody = if (hasElse) parseBlock() else null
-        return IfStatement(keyword, condition, thenBody, elseBody)
+        val lastBody = elseBody ?: thenBody
+        val lastStmt = lastBody.lastOrNull()
+        val endLine = lastStmt?.span?.endLine ?: keyword.line
+        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
+        return IfStatement(keyword, condition, thenBody, elseBody, Span(keyword.line, keyword.column, endLine, endCol))
     }
 
     private fun parseWhile(): Node {
@@ -171,7 +201,10 @@ class Parser(private val tokens: List<Token>) {
             parseExpression()
         }
         val body = parseBlock()
-        return WhileStatement(keyword, condition, body)
+        val lastStmt = body.lastOrNull()
+        val endLine = lastStmt?.span?.endLine ?: keyword.line
+        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
+        return WhileStatement(keyword, condition, body, Span(keyword.line, keyword.column, endLine, endCol))
     }
 
     private fun parseFor(): Node {
@@ -183,26 +216,35 @@ class Parser(private val tokens: List<Token>) {
         val step = if (current().type != TokenType.RBRACKET) parseExpression() else null
         expect(TokenType.RBRACKET, "Expected ']' after FOR control list")
         val body = parseBlock()
-        return ForStatement(keyword, varName, from, to, step, body)
+        val lastStmt = body.lastOrNull()
+        val endLine = lastStmt?.span?.endLine ?: keyword.line
+        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
+        return ForStatement(keyword, varName, from, to, step, body, Span(keyword.line, keyword.column, endLine, endCol))
     }
 
     private fun parseForEach(): Node {
         val keyword = advance()
         val list = parseExpression()
         val body = parseBlock()
-        return ForEachStatement(keyword, list, body)
+        val lastStmt = body.lastOrNull()
+        val endLine = lastStmt?.span?.endLine ?: keyword.line
+        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
+        return ForEachStatement(keyword, list, body, Span(keyword.line, keyword.column, endLine, endCol))
     }
 
     private fun parseForever(): Node {
         val keyword = advance()
         val body = parseBlock()
-        return ForeverStatement(keyword, body)
+        val lastStmt = body.lastOrNull()
+        val endLine = lastStmt?.span?.endLine ?: keyword.line
+        val endCol = lastStmt?.span?.endCol ?: (keyword.column + keyword.length)
+        return ForeverStatement(keyword, body, Span(keyword.line, keyword.column, endLine, endCol))
     }
 
     private fun parseOutput(): Node {
         val keyword = advance()
         val value = parseExpression()
-        return OutputStatement(keyword, value)
+        return OutputStatement(keyword, value, Span(keyword.line, keyword.column, value.span.endLine, value.span.endCol))
     }
 
     private fun parseMake(local: Boolean): Node {
@@ -210,12 +252,12 @@ class Parser(private val tokens: List<Token>) {
         if (current().type == TokenType.QUOTED_WORD) {
             val nameToken = advance()
             val value = parseExpression()
-            return VariableAssignment(keyword, nameToken, value, local)
+            return VariableAssignment(keyword, nameToken, value, local, Span(keyword.line, keyword.column, value.span.endLine, value.span.endCol))
         }
         // Non-standard form — parse as a 2-arg command call
         val arg1 = parseExpression()
         val arg2 = parseExpression()
-        return CommandCall(keyword, listOf(arg1, arg2))
+        return CommandCall(keyword, listOf(arg1, arg2), Span(keyword.line, keyword.column, arg2.span.endLine, arg2.span.endCol))
     }
 
     private fun parseLocal(): Node {
@@ -227,14 +269,20 @@ class Parser(private val tokens: List<Token>) {
         if (names.isEmpty()) {
             errors += ParseError(current(), "Expected at least one variable name after LOCAL")
         }
-        return LocalDeclaration(keyword, names)
+        val lastNameOrKeyword = names.lastOrNull() ?: keyword
+        return LocalDeclaration(keyword, names, Span(keyword.line, keyword.column, lastNameOrKeyword.line, lastNameOrKeyword.column + lastNameOrKeyword.length))
     }
 
     private fun parseCommandCallStatement(): Node {
         val nameToken = advance()
         val arity = lookupArity(nameToken.text)
         val args = (1..arity).map { parseExpression() }
-        return CommandCall(nameToken, args)
+        val (endLine, endCol) = if (args.isNotEmpty()) {
+            args.last().span.endLine to args.last().span.endCol
+        } else {
+            nameToken.line to (nameToken.column + nameToken.length)
+        }
+        return CommandCall(nameToken, args, Span(nameToken.line, nameToken.column, endLine, endCol))
     }
 
     // -- Block parsing --
@@ -263,7 +311,8 @@ class Parser(private val tokens: List<Token>) {
         var left = parseAnd()
         while (current().type == TokenType.OR) {
             val op = advance()
-            left = BinaryExpr(left, op, parseAnd())
+            val right = parseAnd()
+            left = BinaryExpr(left, op, right, Span(left.span.startLine, left.span.startCol, right.span.endLine, right.span.endCol))
         }
         return left
     }
@@ -272,7 +321,8 @@ class Parser(private val tokens: List<Token>) {
         var left = parseComparison()
         while (current().type == TokenType.AND) {
             val op = advance()
-            left = BinaryExpr(left, op, parseComparison())
+            val right = parseComparison()
+            left = BinaryExpr(left, op, right, Span(left.span.startLine, left.span.startCol, right.span.endLine, right.span.endCol))
         }
         return left
     }
@@ -282,7 +332,8 @@ class Parser(private val tokens: List<Token>) {
         val type = current().type
         if (type in COMPARISON_OPS) {
             val op = advance()
-            left = BinaryExpr(left, op, parseAddSub())
+            val right = parseAddSub()
+            left = BinaryExpr(left, op, right, Span(left.span.startLine, left.span.startCol, right.span.endLine, right.span.endCol))
         }
         return left
     }
@@ -291,7 +342,8 @@ class Parser(private val tokens: List<Token>) {
         var left = parseMulDiv()
         while (current().type in ADDITIVE_OPS) {
             val op = advance()
-            left = BinaryExpr(left, op, parseMulDiv())
+            val right = parseMulDiv()
+            left = BinaryExpr(left, op, right, Span(left.span.startLine, left.span.startCol, right.span.endLine, right.span.endCol))
         }
         return left
     }
@@ -300,7 +352,8 @@ class Parser(private val tokens: List<Token>) {
         var left = parseUnary()
         while (current().type in MULTIPLICATIVE_OPS) {
             val op = advance()
-            left = BinaryExpr(left, op, parseUnary())
+            val right = parseUnary()
+            left = BinaryExpr(left, op, right, Span(left.span.startLine, left.span.startCol, right.span.endLine, right.span.endCol))
         }
         return left
     }
@@ -312,21 +365,35 @@ class Parser(private val tokens: List<Token>) {
     private fun parseUnary(): Node {
         if (current().type == TokenType.MINUS) {
             val op = advance()
-            return UnaryExpr(op, parseUnary())
+            val operand = parseUnary()
+            return UnaryExpr(op, operand, Span(op.line, op.column, operand.span.endLine, operand.span.endCol))
         }
         if (current().type == TokenType.NOT) {
             val op = advance()
-            return UnaryExpr(op, parseUnary())
+            val operand = parseUnary()
+            return UnaryExpr(op, operand, Span(op.line, op.column, operand.span.endLine, operand.span.endCol))
         }
         return parsePrimary()
     }
 
     private fun parsePrimary(): Node {
         return when (current().type) {
-            TokenType.NUMBER -> NumberLiteral(advance())
-            TokenType.VARIABLE_REF -> VariableRef(advance())
-            TokenType.QUOTED_WORD -> WordLiteral(advance())
-            TokenType.BOOLEAN_TRUE, TokenType.BOOLEAN_FALSE -> BooleanLiteral(advance())
+            TokenType.NUMBER -> {
+                val tok = advance()
+                NumberLiteral(tok, spanOf(tok))
+            }
+            TokenType.VARIABLE_REF -> {
+                val tok = advance()
+                VariableRef(tok, spanOf(tok))
+            }
+            TokenType.QUOTED_WORD -> {
+                val tok = advance()
+                WordLiteral(tok, spanOf(tok))
+            }
+            TokenType.BOOLEAN_TRUE, TokenType.BOOLEAN_FALSE -> {
+                val tok = advance()
+                BooleanLiteral(tok, spanOf(tok))
+            }
             TokenType.LBRACKET -> parseListLiteral()
             TokenType.LPAREN -> parseParenExpr()
             TokenType.WORD -> parseReporterCall()
@@ -334,13 +401,13 @@ class Parser(private val tokens: List<Token>) {
             TokenType.NEWLINE, TokenType.EOF, TokenType.RBRACKET, TokenType.RPAREN, TokenType.END -> {
                 val tok = current()
                 errors += ParseError(tok, "Expected expression")
-                ErrorNode(tok, "Expected expression")
+                ErrorNode(tok, "Expected expression", spanOf(tok))
             }
             else -> {
                 val tok = current()
                 errors += ParseError(tok, "Expected expression, got '${tok.text}'")
                 advance()
-                ErrorNode(tok, "Expected expression")
+                ErrorNode(tok, "Expected expression", spanOf(tok))
             }
         }
     }
@@ -349,7 +416,12 @@ class Parser(private val tokens: List<Token>) {
         val nameToken = advance()
         val arity = lookupArity(nameToken.text)
         val args = (1..arity).map { parseTightExpression() }
-        return CommandCall(nameToken, args)
+        val (endLine, endCol) = if (args.isNotEmpty()) {
+            args.last().span.endLine to args.last().span.endCol
+        } else {
+            nameToken.line to (nameToken.column + nameToken.length)
+        }
+        return CommandCall(nameToken, args, Span(nameToken.line, nameToken.column, endLine, endCol))
     }
 
     private fun parseListLiteral(): ListLiteral {
@@ -358,30 +430,48 @@ class Parser(private val tokens: List<Token>) {
         while (current().type != TokenType.RBRACKET && current().type != TokenType.EOF) {
             when (current().type) {
                 TokenType.NEWLINE, TokenType.COMMENT -> advance()
-                TokenType.NUMBER -> elements += NumberLiteral(advance())
-                TokenType.VARIABLE_REF -> elements += VariableRef(advance())
-                TokenType.BOOLEAN_TRUE, TokenType.BOOLEAN_FALSE -> elements += BooleanLiteral(advance())
+                TokenType.NUMBER -> {
+                    val tok = advance()
+                    elements += NumberLiteral(tok, spanOf(tok))
+                }
+                TokenType.VARIABLE_REF -> {
+                    val tok = advance()
+                    elements += VariableRef(tok, spanOf(tok))
+                }
+                TokenType.BOOLEAN_TRUE, TokenType.BOOLEAN_FALSE -> {
+                    val tok = advance()
+                    elements += BooleanLiteral(tok, spanOf(tok))
+                }
                 TokenType.LBRACKET -> elements += parseListLiteral()
-                else -> elements += WordLiteral(advance())
+                else -> {
+                    val tok = advance()
+                    elements += WordLiteral(tok, spanOf(tok))
+                }
             }
         }
-        if (current().type == TokenType.RBRACKET) {
+        val close = if (current().type == TokenType.RBRACKET) {
             advance()
         } else {
             errors += ParseError(current(), "Expected ']'")
+            current()
         }
-        return ListLiteral(open, elements)
+        val endLine = close.line
+        val endCol = close.column + close.length
+        return ListLiteral(open, elements, Span(open.line, open.column, endLine, endCol))
     }
 
     private fun parseParenExpr(): Node {
         val open = advance() // (
         val expr = parseExpression()
-        if (current().type == TokenType.RPAREN) {
+        val close = if (current().type == TokenType.RPAREN) {
             advance()
         } else {
             errors += ParseError(current(), "Expected ')'")
+            current()
         }
-        return ParenExpr(open, expr)
+        val endLine = close.line
+        val endCol = close.column + close.length
+        return ParenExpr(open, expr, Span(open.line, open.column, endLine, endCol))
     }
 
     // -- Error recovery --
