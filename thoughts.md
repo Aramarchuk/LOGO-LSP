@@ -4,3 +4,4 @@
 4. if that returns null findMakeInProcedure walks it again). Since go-to-declaration may
 be invoked often, consider a single walk that checks LOCAL/LOCALMAKE/MAKE in one pass (preserving precedence)
 to avoid repeated AST traversal on large procedures.
+5. Seems like end of the line also ends all brackets and parentheses.
