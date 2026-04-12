@@ -21,89 +21,43 @@ import logo.features.CompletionProvider
 
 class LogoTextDocumentService(private val documentManager: DocumentManager) : TextDocumentService {
 
-    /**
-     * Handle document open: lex, parse, and store the document.
-     */
     override fun didOpen(params: DidOpenTextDocumentParams?) {
         if (params == null) return
-        val uri = params.textDocument.uri
-        val text = params.textDocument.text
-        documentManager.open(uri, text)
+        documentManager.open(params.textDocument.uri, params.textDocument.text)
     }
 
-    /**
-     * Handle document change: re-lex and re-parse (full document sync).
-     */
     override fun didChange(params: DidChangeTextDocumentParams?) {
         if (params == null) return
-        val uri = params.textDocument.uri
-        // In full document sync, the change contains the entire new document
         val text = params.contentChanges.firstOrNull()?.text ?: return
-        documentManager.update(uri, text)
+        documentManager.update(params.textDocument.uri, text)
     }
 
-    /**
-     * Handle document close: remove from storage.
-     */
     override fun didClose(params: DidCloseTextDocumentParams?) {
         if (params == null) return
-        val uri = params.textDocument.uri
-        documentManager.close(uri)
+        documentManager.close(params.textDocument.uri)
     }
 
-    /**
-     * Handle document save: no-op (we use full document sync).
-     */
-    override fun didSave(params: DidSaveTextDocumentParams?) {
-        // No-op: document is already synced via didChange
-    }
+    override fun didSave(params: DidSaveTextDocumentParams?) {}
 
-    /**
-     * Provide semantic tokens (syntax highlighting) for the entire document.
-     * Maps lexer tokens to LSP semantic token types.
-     */
     override fun semanticTokensFull(params: SemanticTokensParams?): CompletableFuture<SemanticTokens> {
-        return CompletableFuture.supplyAsync {
-            if (params == null) return@supplyAsync SemanticTokens(emptyList())
-
-            val uri = params.textDocument.uri
-            val tokens = documentManager.getTokens(uri) ?: emptyList()
-            SemanticTokensProvider.computeTokens(tokens)
-        }
+        if (params == null) return CompletableFuture.completedFuture(SemanticTokens(emptyList()))
+        val tokens = documentManager.getTokens(params.textDocument.uri) ?: emptyList()
+        return CompletableFuture.completedFuture(SemanticTokensProvider.computeTokens(tokens))
     }
 
-    /**
-     * Go to declaration: find the definition of a symbol at the given position.
-     * Resolves variables (:varname) and procedures (TO name) to their definition locations.
-     */
     override fun declaration(params: DeclarationParams?): CompletableFuture<Either<List<Location>, List<LocationLink>>> {
-        return CompletableFuture.supplyAsync {
-            if (params == null) return@supplyAsync Either.forLeft(emptyList())
-
-            val uri = params.textDocument.uri
-            val position = params.position
-            val parseResult = documentManager.getParseResult(uri) ?: return@supplyAsync Either.forLeft(emptyList())
-
-            val locations = GoToDeclarationProvider.findDeclaration(uri, position, parseResult)
-            Either.forLeft(locations)
-        }
+        if (params == null) return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+        val parseResult = documentManager.getParseResult(params.textDocument.uri)
+            ?: return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+        val locations = GoToDeclarationProvider.findDeclaration(params.textDocument.uri, params.position, parseResult)
+        return CompletableFuture.completedFuture(Either.forLeft(locations))
     }
 
-    /**
-     * Provide completions at the given position.
-     * Variable reference context → variable names
-     * Command/keyword context → builtin commands + user procedures + keywords
-     */
     override fun completion(params: CompletionParams?): CompletableFuture<Either<List<CompletionItem>, CompletionList>> {
-        return CompletableFuture.supplyAsync {
-            if (params == null) return@supplyAsync Either.forLeft(emptyList())
-
-            val uri = params.textDocument.uri
-            val position = params.position
-            val parseResult = documentManager.getParseResult(uri) ?: return@supplyAsync Either.forLeft(emptyList())
-
-            val completions = CompletionProvider.computeCompletions(position, parseResult)
-            Either.forLeft(completions)
-        }
+        if (params == null) return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+        val parseResult = documentManager.getParseResult(params.textDocument.uri)
+            ?: return CompletableFuture.completedFuture(Either.forLeft(emptyList()))
+        val completions = CompletionProvider.computeCompletions(params.position, parseResult)
+        return CompletableFuture.completedFuture(Either.forLeft(completions))
     }
 }
