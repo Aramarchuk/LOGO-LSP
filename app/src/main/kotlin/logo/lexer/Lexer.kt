@@ -62,6 +62,7 @@ class Lexer(private val source: String) {
                 ch == ')' -> { tokens.add(Token(TokenType.RPAREN, ")", line, column)); advance() }
                 ch == '+' -> { tokens.add(Token(TokenType.PLUS, "+", line, column)); advance() }
                 ch == '*' -> { tokens.add(Token(TokenType.STAR, "*", line, column)); advance() }
+                ch == '%' -> { tokens.add(Token(TokenType.MODULO, "%", line, column)); advance() }
                 ch == '/' -> { tokens.add(Token(TokenType.SLASH, "/", line, column)); advance() }
                 ch == '=' -> { tokens.add(Token(TokenType.EQ, "=", line, column)); advance() }
                 ch == '-' -> { tokens.add(Token(TokenType.MINUS, "-", line, column)); advance() }
@@ -177,5 +178,5 @@ class Lexer(private val source: String) {
     private fun Char.isWordChar(): Boolean =
         isLetterOrDigit() || this == '_' || this == '?'
 
-    private fun Char.isDelimiter(): Boolean = this in " \t\n\r[]();+-*/=<>:"
+    private fun Char.isDelimiter(): Boolean = this in " \t\n\r[]();+-*/=<>:%"
 }

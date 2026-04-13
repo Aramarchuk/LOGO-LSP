@@ -469,7 +469,7 @@ class Parser(private val tokens: List<Token>) {
     companion object {
         private val SKIP_TOKENS = setOf(TokenType.NEWLINE, TokenType.COMMENT)
         private val ADDITIVE_OPS = setOf(TokenType.PLUS, TokenType.MINUS)
-        private val MULTIPLICATIVE_OPS = setOf(TokenType.STAR, TokenType.SLASH)
+        private val MULTIPLICATIVE_OPS = setOf(TokenType.STAR, TokenType.SLASH, TokenType.MODULO)
         private val COMPARISON_OPS = setOf(
             TokenType.EQ, TokenType.LT, TokenType.GT,
             TokenType.LTE, TokenType.GTE, TokenType.NEQ,

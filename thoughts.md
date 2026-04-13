@@ -6,3 +6,7 @@ be invoked often, consider a single walk that checks LOCAL/LOCALMAKE/MAKE in one
 to avoid repeated AST traversal on large procedures.
 5. Seems like end of the line also ends all brackets and parentheses.
 6. ":" itself doesn't really start any suggestion - that's not cool.
+7. I've completely forgotten to add a "%" operator
+8. collectScopedVariables still collects all variables in FOR loops
+and works inconsistent with MAKE.
+9. Numbers still give me every possible command as suggestion.

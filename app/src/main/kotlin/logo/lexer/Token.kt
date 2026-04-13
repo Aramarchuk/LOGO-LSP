@@ -48,6 +48,7 @@ enum class TokenType {
     PLUS,
     MINUS,
     STAR,
+    MODULO,
     SLASH,
     EQ,
     LT,
