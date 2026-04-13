@@ -35,7 +35,7 @@ object BuiltinCommands {
         cmd("PENDOWN", 0); cmd("PD", 0)
         cmd("HIDETURTLE", 0); cmd("HT", 0)
         cmd("SHOWTURTLE", 0); cmd("ST", 0)
-        cmd("SETPENCOLOR", 1); cmd("SETPC", 1)
+        cmd("SETPENCOLOR", 1); cmd("SETPC", 1); cmd("SETCOLOR", 1)
         cmd("SETPENSIZE", 1)
         cmd("CLEARSCREEN", 0); cmd("CS", 0)
         cmd("CLEAN", 0)
@@ -100,9 +100,60 @@ object BuiltinCommands {
         reporter("READLIST", 0); reporter("RL", 0)
         reporter("READWORD", 0); reporter("RW", 0)
 
+        // Pen extras
+        cmd("SETWIDTH", 1); cmd("SETW", 1)
+        cmd("PENERASE", 0); cmd("PE", 0)
+        cmd("PENREVERSE", 0); cmd("PX", 0)
+        reporter("PENCOLOR", 0); reporter("PC", 0)
+        reporter("WIDTH", 0)
+
+        // Graphics extras
+        cmd("STAMP", 0)
+        cmd("FILL", 0)
+        cmd("SETBG", 1)
+        reporter("BACKGROUND", 0); reporter("BG", 0)
+        cmd("DOT", 0)
+        reporter("DISTANCE", 1)
+
+        // Trig extras
+        reporter("ARCSIN", 1); reporter("ASIN", 1)
+        reporter("ARCCOS", 1); reporter("ACOS", 1)
+        reporter("ARCTAN2", 2); reporter("ATAN2", 2)
+        reporter("LOG", 1)
+        reporter("EXP", 1); reporter("EXPN", 1)
+
+        // String operations
+        reporter("UPPERCASE", 1)
+        reporter("LOWERCASE", 1)
+        reporter("CHAR", 1)
+        reporter("UNICODE", 1)
+
+        // Type checking extras
+        reporter("ARRAY?", 1); reporter("ARRAYP", 1)
+        reporter("NAME?", 1); reporter("NAMEP", 1)
+        reporter("DEFINED?", 1); reporter("DEFINEDP", 1)
+
+        // Control flow extras
+        cmd("UNTIL", 2)
+        cmd("DO.WHILE", 2)
+        cmd("DO.UNTIL", 2)
+        cmd("RUN", 1)
+
+        // I/O extras
+        cmd("ALERT", 1)
+        reporter("READ", 0)
+        reporter("READCHAR", 0); reporter("RC", 0)
+        reporter("READLINE", 0)
+        reporter("READPROMPT", 1); reporter("RP", 1)
+
         // Miscellaneous
         cmd("WAIT", 1)
         reporter("THING", 1)
+        cmd("HELP", 1)
+        reporter("VERSION", 0); reporter("VER", 0)
+        reporter("DATE", 0)
+        reporter("TIME", 0)
+        cmd("BYE", 0); cmd("QUIT", 0); cmd("EXIT", 0)
     }
 
     fun lookup(name: String): BuiltinCommand? = commands[name.uppercase(Locale.ROOT)]
