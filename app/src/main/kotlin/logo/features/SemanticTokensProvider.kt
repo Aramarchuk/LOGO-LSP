@@ -81,7 +81,7 @@ object SemanticTokensProvider {
             TokenType.QUOTED_WORD -> "string"
             TokenType.COMMENT -> "comment"
 
-            TokenType.PLUS, TokenType.MINUS, TokenType.STAR, TokenType.SLASH,
+            TokenType.PLUS, TokenType.MINUS, TokenType.STAR, TokenType.SLASH, TokenType.MODULO,
             TokenType.EQ, TokenType.LT, TokenType.GT, TokenType.LTE, TokenType.GTE, TokenType.NEQ -> "operator"
 
             else -> return -1
