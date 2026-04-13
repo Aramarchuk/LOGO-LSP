@@ -33,7 +33,7 @@ class LogoLanguageServer : LanguageServer, LanguageClientAware {
         capabilities.semanticTokensProvider = semanticTokensOptions
 
         capabilities.declarationProvider = Either.forRight(DeclarationRegistrationOptions())
-        capabilities.completionProvider = CompletionOptions()
+        capabilities.completionProvider = CompletionOptions(false, listOf(":"))
 
         return CompletableFuture.completedFuture(InitializeResult(capabilities))
     }
