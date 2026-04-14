@@ -10,12 +10,5 @@ to avoid repeated AST traversal on large procedures.
 8. ~~collectScopedVariables still collects all variables in FOR loops
 and works inconsistent with MAKE.~~
 9. ~~Numbers still give me every possible command as suggestion.~~
-```
-make "pointer :pointer+1
-make "sline item :pointer :video
-make "bit 2
-for [ j 0 51 1 ]  [
- make "mod :
- ```
-Pointer was detected, sline and bit not.
 10. ~~Keywords are used in different places as independent lists - should be one.~~
+11. GoTo still works strange and not really unified...

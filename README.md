@@ -28,10 +28,6 @@ java -jar app/build/libs/logo-lsp.jar   # start LSP server (stdio)
 3. Command: `java -jar /path/to/logo-lsp.jar`
 4. File association: `*.logo`
 
-### VS Code
-
-Create a minimal extension or use a generic LSP client extension, pointing to `java -jar logo-lsp.jar` with stdio transport.
-
 ## Architecture
 
 ```

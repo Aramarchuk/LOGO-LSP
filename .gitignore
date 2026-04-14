@@ -38,3 +38,4 @@ build
 # IDE
 .idea/
 *.iml
+/test.logo

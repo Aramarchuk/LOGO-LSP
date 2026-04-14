@@ -2,13 +2,19 @@ package logo.features
 
 import logo.lexer.Token
 import logo.parser.CommandCall
+import logo.parser.ForEachStatement
+import logo.parser.ForStatement
+import logo.parser.ForeverStatement
+import logo.parser.IfStatement
 import logo.parser.LocalDeclaration
 import logo.parser.Node
 import logo.parser.Parser
 import logo.parser.ProcedureDefinition
 import logo.parser.Program
+import logo.parser.RepeatStatement
 import logo.parser.VariableAssignment
 import logo.parser.VariableRef
+import logo.parser.WhileStatement
 import logo.parser.children
 import logo.parser.findNodePath
 import logo.parser.walk
@@ -19,91 +25,212 @@ import java.util.Locale
 
 object GoToDeclarationProvider {
 
-    private data class ProcedureVariableCandidates(
-        var firstLocalMatch: Token? = null,
-        var firstMakeMatch: Token? = null,
+    private data class ResolutionContext(
+        val name: String,
+        val path: List<Node>,
+        val program: Program,
+        val currentProcedure: ProcedureDefinition?,
     )
 
     fun findDeclaration(uri: String, position: Position, parseResult: Parser.ParseResult): List<Location> {
         val path = parseResult.program.findNodePath(position.line, position.character)
         val nodeAtCursor = path.lastOrNull()
-        val declToken: Token? = when (nodeAtCursor) {
-            is VariableRef -> findVariableDeclaration(nodeAtCursor, path)
-            is CommandCall -> findProcedureDeclaration(nodeAtCursor.nameToken, parseResult.program)
-            else -> null
+        val declTokens: List<Token> = when (nodeAtCursor) {
+            is VariableRef -> findVariableDeclarations(nodeAtCursor, path, parseResult.program)
+            is CommandCall -> findProcedureDeclaration(nodeAtCursor.nameToken, parseResult.program)?.let(::listOf) ?: emptyList()
+            else -> emptyList()
         }
-        return if (declToken != null) listOf(tokenToLocation(uri, declToken)) else emptyList()
+        return declTokens.map { tokenToLocation(uri, it) }
     }
 
-    // -- Variable resolution: walk path from cursor to root --
+    // -- Variable resolution --
 
-    private fun findVariableDeclaration(ref: VariableRef, path: List<Node>): Token? {
-        val name = ref.token.normalizedVariableRefName()
-        for (node in path.asReversed()) {
-            when (node) {
-                is ProcedureDefinition -> findVariableInProcedure(name, node)?.let { return it }
-                is Program -> findTopLevelMake(name, node)?.let { return it }
+    private fun findVariableDeclarations(ref: VariableRef, path: List<Node>, program: Program): List<Token> {
+        val context = ResolutionContext(
+            name = ref.token.normalizedVariableRefName(),
+            path = path,
+            program = program,
+            currentProcedure = path.filterIsInstance<ProcedureDefinition>().lastOrNull(),
+        )
+
+        val forMatch = findNearestForMatch(context)
+        if (forMatch != null) return listOf(forMatch)
+
+        val procedureMatches = findInCurrentProcedure(context)
+        if (procedureMatches.isNotEmpty()) return procedureMatches
+
+        val globalMatches = findInGlobalScope(context)
+        if (globalMatches.isNotEmpty()) return globalMatches
+
+        val otherProcedureMatches = findInOtherProcedures(context)
+        if (otherProcedureMatches.isNotEmpty()) return otherProcedureMatches
+
+        return emptyList()
+    }
+
+    private fun findNearestForMatch(context: ResolutionContext): Token? {
+        return context.path.asReversed()
+            .filterIsInstance<ForStatement>()
+            .firstOrNull { it.varName.normalizedVariableWordName() == context.name }
+            ?.varName
+    }
+
+    private fun findInCurrentProcedure(context: ResolutionContext): List<Token> {
+        val proc = context.currentProcedure ?: return emptyList()
+
+        val parameterMatch = findParameter(context.name, proc)
+        if (parameterMatch != null) return listOf(parameterMatch)
+
+        val definiteLocalMatch = findFirstTopLevelLocalMatch(context.name, proc.body)
+        if (definiteLocalMatch != null) return listOf(definiteLocalMatch)
+
+        return collectPossibleMatches(
+            name = context.name,
+            nodes = proc.body,
+            allowLocal = true,
+            allowMake = true,
+        )
+    }
+
+    private fun findInGlobalScope(context: ResolutionContext): List<Token> {
+        val firstTopLevelGlobalMake = findFirstTopLevelMake(context.name, context.program.statements)
+        if (firstTopLevelGlobalMake != null) return listOf(firstTopLevelGlobalMake)
+
+        return collectPossibleMatches(
+            name = context.name,
+            nodes = context.program.statements,
+            allowLocal = false,
+            allowMake = true,
+        )
+    }
+
+    private fun findInOtherProcedures(context: ResolutionContext): List<Token> {
+        val procedures = context.program.statements
+            .filterIsInstance<ProcedureDefinition>()
+            .filterNot { it === context.currentProcedure }
+
+        val definiteMatches = mutableListOf<Token>()
+        for (proc in procedures) {
+            val match = findFirstTopLevelMake(context.name, proc.body)
+            if (match != null) definiteMatches += match
+        }
+        if (definiteMatches.isNotEmpty()) return sortAndDedupe(definiteMatches)
+
+        val possibleMatches = mutableListOf<Token>()
+        for (proc in procedures) {
+            possibleMatches += collectPossibleMatches(
+                name = context.name,
+                nodes = proc.body,
+                allowLocal = false,
+                allowMake = true,
+            )
+        }
+        return sortAndDedupe(possibleMatches)
+    }
+
+    private fun findFirstTopLevelLocalMatch(name: String, body: List<Node>): Token? {
+        for (stmt in body) {
+            when (stmt) {
+                is LocalDeclaration -> {
+                    val localToken = stmt.names.firstOrNull { it.normalizedVariableWordName() == name }
+                    if (localToken != null) return localToken
+                }
+                is VariableAssignment -> {
+                    if (stmt.local && stmt.nameToken.normalizedVariableWordName() == name) {
+                        return stmt.nameToken
+                    }
+                }
                 else -> {}
             }
         }
         return null
     }
 
-    private fun findVariableInProcedure(name: String, proc: ProcedureDefinition): Token? {
-        val candidates = collectProcedureVariableCandidates(name, proc)
-        return candidates.firstLocalMatch ?: findParameter(name, proc) ?: candidates.firstMakeMatch
-    }
-
-    private fun collectProcedureVariableCandidates(name: String, proc: ProcedureDefinition): ProcedureVariableCandidates {
-        val candidates = ProcedureVariableCandidates()
-        for (stmt in proc.body) {
-            walkProcedureScopeSkippingNestedProcedures(stmt, name, candidates)
+    private fun findFirstTopLevelMake(name: String, body: List<Node>): Token? {
+        for (stmt in body) {
+            if (stmt is VariableAssignment && !stmt.local && stmt.nameToken.normalizedVariableWordName() == name) {
+                return stmt.nameToken
+            }
         }
-
-        return candidates
+        return null
     }
 
-    private fun walkProcedureScopeSkippingNestedProcedures(
+    private fun collectPossibleMatches(
+        name: String,
+        nodes: List<Node>,
+        allowLocal: Boolean,
+        allowMake: Boolean,
+    ): List<Token> {
+        val matches = mutableListOf<Token>()
+        for (node in nodes) {
+            collectPossibleMatchesInNode(
+                node = node,
+                name = name,
+                allowLocal = allowLocal,
+                allowMake = allowMake,
+                insideControlStructure = false,
+                out = matches,
+            )
+        }
+        return sortAndDedupe(matches)
+    }
+
+    private fun collectPossibleMatchesInNode(
         node: Node,
         name: String,
-        candidates: ProcedureVariableCandidates,
+        allowLocal: Boolean,
+        allowMake: Boolean,
+        insideControlStructure: Boolean,
+        out: MutableList<Token>,
     ) {
         if (node is ProcedureDefinition) return
 
+        val isControl = node is RepeatStatement ||
+            node is IfStatement ||
+            node is WhileStatement ||
+            node is ForStatement ||
+            node is ForEachStatement ||
+            node is ForeverStatement
+
+        val nowInsideControl = insideControlStructure || isControl
+
         when (node) {
-            is VariableAssignment -> collectVariableAssignmentCandidate(name, node, candidates)
-            is LocalDeclaration -> collectLocalDeclarationCandidate(name, node, candidates)
+            is LocalDeclaration -> {
+                if (allowLocal && nowInsideControl) {
+                    val localToken = node.names.firstOrNull { it.normalizedVariableWordName() == name }
+                    if (localToken != null) out += localToken
+                }
+            }
+            is VariableAssignment -> {
+                if (node.nameToken.normalizedVariableWordName() == name && nowInsideControl) {
+                    val allowed = if (node.local) allowLocal else allowMake
+                    if (allowed) out += node.nameToken
+                }
+            }
+            is ForStatement -> {
+                if (allowMake && nowInsideControl && node.varName.normalizedVariableWordName() == name) {
+                    out += node.varName
+                }
+            }
             else -> {}
         }
 
         for (child in node.children()) {
-            walkProcedureScopeSkippingNestedProcedures(child, name, candidates)
+            collectPossibleMatchesInNode(
+                node = child,
+                name = name,
+                allowLocal = allowLocal,
+                allowMake = allowMake,
+                insideControlStructure = nowInsideControl,
+                out = out,
+            )
         }
     }
 
-    private fun collectVariableAssignmentCandidate(
-        name: String,
-        assignment: VariableAssignment,
-        candidates: ProcedureVariableCandidates,
-    ) {
-        if (assignment.nameToken.normalizedVariableWordName() != name) return
-
-        if (assignment.local && candidates.firstLocalMatch == null) {
-            candidates.firstLocalMatch = assignment.nameToken
-        }
-        if (!assignment.local && candidates.firstMakeMatch == null) {
-            candidates.firstMakeMatch = assignment.nameToken
-        }
-    }
-
-    private fun collectLocalDeclarationCandidate(
-        name: String,
-        declaration: LocalDeclaration,
-        candidates: ProcedureVariableCandidates,
-    ) {
-        if (candidates.firstLocalMatch != null) return
-
-        candidates.firstLocalMatch = declaration.names.firstOrNull { it.normalizedVariableWordName() == name }
+    private fun sortAndDedupe(tokens: List<Token>): List<Token> {
+        return tokens
+            .distinctBy { Triple(it.line, it.column, it.text) }
+            .sortedWith(compareBy<Token> { it.line }.thenBy { it.column })
     }
 
     private fun findParameter(name: String, proc: ProcedureDefinition): Token? {
@@ -111,12 +238,6 @@ object GoToDeclarationProvider {
     }
 
 
-    private fun findTopLevelMake(name: String, program: Program): Token? {
-        return program.statements
-            .filterIsInstance<VariableAssignment>()
-            .firstOrNull { it.nameToken.normalizedVariableWordName() == name }
-            ?.nameToken
-    }
 
     // -- Procedure resolution --
 
