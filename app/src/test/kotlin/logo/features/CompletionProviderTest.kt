@@ -106,17 +106,19 @@ class CompletionProviderTest {
     }
 
     @Test
-    fun `for variable not visible outside its loop`() {
+    fun `for variable visible outside its loop`() {
+        // In LOGO, FOR variables are global
         val source = """
             FOR [i 1 10] [FD :i]
             FD :
         """.trimIndent()
         val items = complete(source, 1, 4)
-        assertFalse(items.contains("i"))
+        assertTrue(items.contains("i"))
     }
 
     @Test
-    fun `other procedure variables not visible`() {
+    fun `procedure variables visible from other procedure`() {
+        // In LOGO, MAKE inside procedures creates globals (unless LOCAL)
         val source = """
             TO procA :aa
               MAKE "localA 1
