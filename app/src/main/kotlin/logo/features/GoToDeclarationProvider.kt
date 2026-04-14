@@ -2,19 +2,14 @@ package logo.features
 
 import logo.lexer.Token
 import logo.parser.CommandCall
-import logo.parser.ForEachStatement
 import logo.parser.ForStatement
-import logo.parser.ForeverStatement
-import logo.parser.IfStatement
 import logo.parser.LocalDeclaration
 import logo.parser.Node
 import logo.parser.Parser
 import logo.parser.ProcedureDefinition
 import logo.parser.Program
-import logo.parser.RepeatStatement
 import logo.parser.VariableAssignment
 import logo.parser.VariableRef
-import logo.parser.WhileStatement
 import logo.parser.children
 import logo.parser.findNodePath
 import logo.parser.walk
