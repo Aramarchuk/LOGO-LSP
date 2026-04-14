@@ -162,4 +162,18 @@ class CompletionProviderTest {
         assertTrue(items.contains("j"))
         assertTrue(items.contains("i"))
     }
+
+    @Test
+    fun `nested procedure variables are not suggested in outer procedure`() {
+        val source = """
+            TO outer
+              TO inner
+                LOCALMAKE "x 1
+              END
+              PRINT :
+            END
+        """.trimIndent()
+        val items = complete(source, 4, 8)
+        assertFalse(items.contains("x"))
+    }
 }
