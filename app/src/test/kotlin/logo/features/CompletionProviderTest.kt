@@ -132,7 +132,7 @@ class CompletionProviderTest {
 
     @Test
     fun `procedure variables visible from other procedure`() {
-        // In LOGO, MAKE inside procedures creates globals (unless LOCAL)
+        // Procedure parameters and variables created in another procedure are not visible here
         val source = """
             TO procA :aa
               MAKE "localA 1
