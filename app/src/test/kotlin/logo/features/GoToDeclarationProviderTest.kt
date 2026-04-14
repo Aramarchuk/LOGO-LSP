@@ -25,6 +25,13 @@ class GoToDeclarationProviderTest {
     }
 
     @Test
+    fun `LOCAL-MAKE separated definition`() {
+        val source = "TO square :size\n  LOCAL \"i \nMAKE \"i 10\nFD :size\nEND\nPRINT :i"
+        val targets = findDecls(source, 5, 7)
+        assertTrue(targets.isEmpty())
+    }
+
+    @Test
     fun `goto global make`() {
         val source = "MAKE \"x 5\nPRINT :x"
         val targets = findDecls(source, 1, 6)
@@ -148,10 +155,16 @@ class GoToDeclarationProviderTest {
     }
 
     @Test
-    fun `other procedure fallback ignores local declaration and finds make`() {
+    fun `other procedure fallback checks for locality`() {
         val source = "TO test\n  LOCAL \"y\n  MAKE \"y 5\nEND\nPRINT :y"
         val targets = findDecls(source, 4, 6)
-        assertEquals(listOf(2 to 7), targets)
+        assertTrue(targets.isEmpty())
+    }
+    @Test
+    fun `inside procedure fallback checks for locality`() {
+        val source = "TO test\n  LOCAL \"y\n  MAKE \"y 5\nPRINT :y\nEND"
+        val targets = findDecls(source, 3, 6)
+        assertEquals(listOf(1 to 8), targets)
     }
 
     @Test

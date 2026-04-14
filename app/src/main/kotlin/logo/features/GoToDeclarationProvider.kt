@@ -111,6 +111,9 @@ object GoToDeclarationProvider {
 
         val definiteMatches = mutableListOf<Token>()
         for (proc in procedures) {
+            // LOCAL/LOCALMAKE makes the variable procedure-local; ignore this procedure in global fallback.
+            if (findFirstTopLevelLocalMatch(context.name, proc.body) != null) continue
+
             val match = findFirstTopLevelMake(context.name, proc.body)
             if (match != null) definiteMatches += match
         }
@@ -118,6 +121,8 @@ object GoToDeclarationProvider {
 
         val possibleMatches = mutableListOf<Token>()
         for (proc in procedures) {
+            if (findFirstTopLevelLocalMatch(context.name, proc.body) != null) continue
+
             possibleMatches += collectPossibleMatches(
                 name = context.name,
                 nodes = proc.body,
