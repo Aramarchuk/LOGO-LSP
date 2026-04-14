@@ -39,9 +39,7 @@ Source text → Lexer → Tokens → Parser → AST (with spans) → LSP feature
 - **AST with spans** — every node tracks source position for cursor-to-node mapping
 
 ## Key decisions
-- Turns out it's quite hard to organize GoToDeclaration in LOGO, while there is no difference
-between declaration and assignment of the variable. I've come out with some compromise.
-I'm searching for all MAKE keywords in every procedure and control-flow, but trying to sort and filter them.
+- It turns out that organizing GoToDeclaration in LOGO is quite challenging, since there is no distinction between declaration and assignment of a variable. I came up with a compromise: I search for all MAKE keywords across procedures and control-flow constructs, then sort and filter them. First come MAKEs local to the procedure, then those that are definitely on the execution path, followed by those hidden behind conditions, and finally non-local MAKEs from all other procedures. Determining exactly which MAKEs are executed at the cursor would require solving the Halting Problem.
 - LSP4J supports asynchronous computations and incremental parsing, but I've decided that support
 such things would be overengineering for this task.
 
