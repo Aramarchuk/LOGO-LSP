@@ -145,4 +145,12 @@ class GoToDeclarationProviderTest {
         val target = findDecl(source, 4, 6)
         assertNull(target)
     }
+
+    @Test
+    fun `nested procedure variables are not visible in outer procedure`() {
+        val source = "TO outer\n  TO inner\n    LOCALMAKE \"x 1\n  END\n  PRINT :x\nEND"
+        // :x is in outer procedure; LOCALMAKE "x exists only inside nested (invalid) inner procedure
+        val target = findDecl(source, 4, 8)
+        assertNull(target)
+    }
 }

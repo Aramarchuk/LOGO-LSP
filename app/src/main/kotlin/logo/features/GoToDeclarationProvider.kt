@@ -9,6 +9,7 @@ import logo.parser.ProcedureDefinition
 import logo.parser.Program
 import logo.parser.VariableAssignment
 import logo.parser.VariableRef
+import logo.parser.children
 import logo.parser.findNodePath
 import logo.parser.walk
 import org.eclipse.lsp4j.Location
@@ -55,15 +56,29 @@ object GoToDeclarationProvider {
 
     private fun collectProcedureVariableCandidates(name: String, proc: ProcedureDefinition): ProcedureVariableCandidates {
         val candidates = ProcedureVariableCandidates()
-        for (node in proc.walk()) {
-            when (node) {
-                is VariableAssignment -> collectVariableAssignmentCandidate(name, node, candidates)
-                is LocalDeclaration -> collectLocalDeclarationCandidate(name, node, candidates)
-                else -> {}
-            }
+        for (stmt in proc.body) {
+            walkProcedureScopeSkippingNestedProcedures(stmt, name, candidates)
         }
 
         return candidates
+    }
+
+    private fun walkProcedureScopeSkippingNestedProcedures(
+        node: Node,
+        name: String,
+        candidates: ProcedureVariableCandidates,
+    ) {
+        if (node is ProcedureDefinition) return
+
+        when (node) {
+            is VariableAssignment -> collectVariableAssignmentCandidate(name, node, candidates)
+            is LocalDeclaration -> collectLocalDeclarationCandidate(name, node, candidates)
+            else -> {}
+        }
+
+        for (child in node.children()) {
+            walkProcedureScopeSkippingNestedProcedures(child, name, candidates)
+        }
     }
 
     private fun collectVariableAssignmentCandidate(
