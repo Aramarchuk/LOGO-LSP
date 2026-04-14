@@ -88,7 +88,6 @@ object GoToDeclarationProvider {
             name = context.name,
             nodes = proc.body,
             allowLocal = true,
-            allowMake = true,
         )
     }
 
@@ -100,7 +99,6 @@ object GoToDeclarationProvider {
             name = context.name,
             nodes = context.program.statements,
             allowLocal = false,
-            allowMake = true,
         )
     }
 
@@ -127,7 +125,6 @@ object GoToDeclarationProvider {
                 name = context.name,
                 nodes = proc.body,
                 allowLocal = false,
-                allowMake = true,
             )
         }
         return sortAndDedupe(possibleMatches)
@@ -164,7 +161,6 @@ object GoToDeclarationProvider {
         name: String,
         nodes: List<Node>,
         allowLocal: Boolean,
-        allowMake: Boolean,
     ): List<Token> {
         val matches = mutableListOf<Token>()
         for (node in nodes) {
@@ -172,8 +168,6 @@ object GoToDeclarationProvider {
                 node = node,
                 name = name,
                 allowLocal = allowLocal,
-                allowMake = allowMake,
-                insideControlStructure = false,
                 out = matches,
             )
         }
@@ -184,36 +178,25 @@ object GoToDeclarationProvider {
         node: Node,
         name: String,
         allowLocal: Boolean,
-        allowMake: Boolean,
-        insideControlStructure: Boolean,
         out: MutableList<Token>,
     ) {
         if (node is ProcedureDefinition) return
 
-        val isControl = node is RepeatStatement ||
-            node is IfStatement ||
-            node is WhileStatement ||
-            node is ForStatement ||
-            node is ForEachStatement ||
-            node is ForeverStatement
-
-        val nowInsideControl = insideControlStructure || isControl
 
         when (node) {
             is LocalDeclaration -> {
-                if (allowLocal && nowInsideControl) {
+                if (allowLocal) {
                     val localToken = node.names.firstOrNull { it.normalizedVariableWordName() == name }
                     if (localToken != null) out += localToken
                 }
             }
             is VariableAssignment -> {
-                if (node.nameToken.normalizedVariableWordName() == name && nowInsideControl) {
-                    val allowed = if (node.local) allowLocal else allowMake
-                    if (allowed) out += node.nameToken
+                if (node.nameToken.normalizedVariableWordName() == name) {
+                    if (!node.local || allowLocal) out += node.nameToken
                 }
             }
             is ForStatement -> {
-                if (allowMake && nowInsideControl && node.varName.normalizedVariableWordName() == name) {
+                if (node.varName.normalizedVariableWordName() == name) {
                     out += node.varName
                 }
             }
@@ -225,8 +208,6 @@ object GoToDeclarationProvider {
                 node = child,
                 name = name,
                 allowLocal = allowLocal,
-                allowMake = allowMake,
-                insideControlStructure = nowInsideControl,
                 out = out,
             )
         }
