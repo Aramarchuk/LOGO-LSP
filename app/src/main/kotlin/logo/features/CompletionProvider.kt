@@ -3,18 +3,30 @@ package logo.features
 import org.eclipse.lsp4j.CompletionItem
 import org.eclipse.lsp4j.CompletionItemKind
 import org.eclipse.lsp4j.Position
-import logo.parser.BooleanLiteral
 import logo.parser.CommandCall
+import logo.parser.ErrorNode
 import logo.parser.ForStatement
+import logo.parser.ForEachStatement
+import logo.parser.ForeverStatement
+import logo.parser.IfStatement
 import logo.parser.LocalDeclaration
 import logo.parser.Node
 import logo.parser.NumberLiteral
+import logo.parser.OutputStatement
+import logo.parser.ParenExpr
 import logo.parser.Parser
 import logo.parser.ProcedureDefinition
 import logo.parser.Program
+import logo.parser.RepeatStatement
+import logo.parser.StopStatement
+import logo.parser.UnaryExpr
 import logo.parser.VariableAssignment
 import logo.parser.VariableRef
+import logo.parser.WhileStatement
 import logo.parser.WordLiteral
+import logo.parser.BooleanLiteral
+import logo.parser.BinaryExpr
+import logo.parser.ListLiteral
 import logo.parser.children
 import logo.parser.findNodePath
 import logo.parser.walk
@@ -23,23 +35,80 @@ import java.util.Locale
 
 object CompletionProvider {
 
-    private val KEYWORDS = logo.lexer.LogoKeywords.Keywords
+    private val KEYWORDS = logo.lexer.LogoKeywords.keywords
+
+    private enum class CompletionKind {
+        VARIABLE,
+        COMMAND,
+        NONE,
+    }
+
+    private data class CompletionContext(
+        val kind: CompletionKind,
+        val prefix: String = "",
+        val path: List<Node> = emptyList(),
+    )
 
     fun computeCompletions(position: Position, parseResult: Parser.ParseResult): List<CompletionItem> {
         val program = parseResult.program
         val path = program.findNodePath(position.line, position.character)
         val deepestNode = path.lastOrNull()
+        val context = resolveContext(path, deepestNode)
 
-        return when (deepestNode) {
-            is VariableRef -> {
-                val prefix = deepestNode.token.text.removePrefix(":")
-                variableCompletions(path, prefix)
-            }
-            is CommandCall -> commandCompletions(program, deepestNode.nameToken.text)
-            is NumberLiteral, is WordLiteral, is BooleanLiteral -> emptyList()
-            is Program, is ProcedureDefinition, null -> commandCompletions(program, "")
-            else -> emptyList()
+        return when (context.kind) {
+            CompletionKind.VARIABLE -> variableCompletions(context.path, context.prefix)
+            CompletionKind.COMMAND -> commandCompletions(program, context.prefix)
+            CompletionKind.NONE -> emptyList()
         }
+    }
+
+    private fun resolveContext(path: List<Node>, deepestNode: Node?): CompletionContext {
+        if (deepestNode is VariableRef) {
+            return CompletionContext(
+                kind = CompletionKind.VARIABLE,
+                prefix = deepestNode.token.text.removePrefix(":"),
+                path = path,
+            )
+        }
+        if (deepestNode is CommandCall) {
+            return CompletionContext(
+                kind = CompletionKind.COMMAND,
+                prefix = deepestNode.nameToken.text,
+            )
+        }
+        if (isStatementCommandContext(deepestNode)) {
+            return CompletionContext(kind = CompletionKind.COMMAND)
+        }
+        return CompletionContext(kind = CompletionKind.NONE)
+    }
+
+    private fun isStatementCommandContext(node: Node?): Boolean {
+        if (node == null) return true
+
+        if (node is NumberLiteral ||
+            node is WordLiteral ||
+            node is BooleanLiteral ||
+            node is BinaryExpr ||
+            node is UnaryExpr ||
+            node is ParenExpr
+        ) {
+            return false
+        }
+
+        return node is Program ||
+            node is ProcedureDefinition ||
+            node is ListLiteral ||
+            node is RepeatStatement ||
+            node is IfStatement ||
+            node is WhileStatement ||
+            node is ForStatement ||
+            node is ForEachStatement ||
+            node is ForeverStatement ||
+            node is VariableAssignment ||
+            node is LocalDeclaration ||
+            node is OutputStatement ||
+            node is StopStatement ||
+            node is ErrorNode
     }
 
     // -- Completion by context --

@@ -1,7 +1,7 @@
 package logo.lexer
 
 object LogoKeywords {
-    val MapOfKeywords = mapOf(
+    val mapOfKeywords = mapOf(
         "TO" to TokenType.TO,
         "END" to TokenType.END,
         "IF" to TokenType.IF,
@@ -23,6 +23,6 @@ object LogoKeywords {
         "TRUE" to TokenType.BOOLEAN_TRUE,
         "FALSE" to TokenType.BOOLEAN_FALSE,
     )
-    val Keywords = MapOfKeywords.keys.sorted()
+    val keywords = mapOfKeywords.keys.sorted()
 
 }
