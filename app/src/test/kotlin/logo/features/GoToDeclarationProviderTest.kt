@@ -67,10 +67,22 @@ class GoToDeclarationProviderTest {
     }
 
     @Test
-    fun `procedure level make is not used before global and other-procedure fallback`() {
+    fun `procedure level make`() {
         val source = "TO test\n  MAKE \"a 5\n  PRINT :a\nEND"
         val targets = findDecls(source, 2, 8)
-        assertTrue(targets.isEmpty())
+        assertEquals(targets, listOf(1 to 7))
+    }
+    @Test
+    fun `procedure level make is used before global and other-procedure fallback`() {
+        val source = "MAKE \"a 15\nTO test\n  MAKE \"a 5\n  PRINT :a\nEND"
+        val targets = findDecls(source, 3, 8)
+        assertEquals(targets, listOf(2 to 7))
+    }
+    @Test
+    fun `other-procedure level make is not used before global and other-procedure fallback`() {
+        val source = "MAKE \"a 15\nTO test\n  MAKE \"a 5\nEND\n  PRINT :a"
+        val targets = findDecls(source, 4, 8)
+        assertEquals(targets, listOf(0 to 5))
     }
 
     @Test
