@@ -8,31 +8,6 @@ class Lexer(private val source: String) {
     private var line = 0
     private var column = 0
 
-    companion object {
-        private val keywords = mapOf(
-            "TO" to TokenType.TO,
-            "END" to TokenType.END,
-            "IF" to TokenType.IF,
-            "IFELSE" to TokenType.IFELSE,
-            "REPEAT" to TokenType.REPEAT,
-            "WHILE" to TokenType.WHILE,
-            "FOR" to TokenType.FOR,
-            "FOREACH" to TokenType.FOREACH,
-            "FOREVER" to TokenType.FOREVER,
-            "OUTPUT" to TokenType.OUTPUT,
-            "OP" to TokenType.OUTPUT,
-            "STOP" to TokenType.STOP,
-            "MAKE" to TokenType.MAKE,
-            "LOCALMAKE" to TokenType.LOCALMAKE,
-            "LOCAL" to TokenType.LOCAL,
-            "AND" to TokenType.AND,
-            "OR" to TokenType.OR,
-            "NOT" to TokenType.NOT,
-            "TRUE" to TokenType.BOOLEAN_TRUE,
-            "FALSE" to TokenType.BOOLEAN_FALSE,
-        )
-    }
-
     fun tokenize(): List<Token> {
         val tokens = mutableListOf<Token>()
         while (pos < source.length) {
@@ -132,7 +107,7 @@ class Lexer(private val source: String) {
             advance()
         }
         val text = source.substring(start, pos)
-        val type = keywords[text.uppercase(Locale.ROOT)] ?: TokenType.WORD
+        val type = LogoKeywords.MapOfKeywords[text.uppercase(Locale.ROOT)] ?: TokenType.WORD
         return Token(type, text, line, startCol)
     }
 

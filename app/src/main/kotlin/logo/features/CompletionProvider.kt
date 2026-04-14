@@ -13,6 +13,7 @@ import logo.parser.Program
 import logo.parser.VariableAssignment
 import logo.parser.VariableRef
 import logo.parser.WordLiteral
+import logo.parser.children
 import logo.parser.findNodePath
 import logo.parser.walk
 import logo.analysis.BuiltinCommands
@@ -20,11 +21,7 @@ import java.util.Locale
 
 object CompletionProvider {
 
-    private val KEYWORDS = listOf(
-        "TO", "END", "IF", "IFELSE", "REPEAT", "WHILE",
-        "FOR", "FOREACH", "FOREVER", "MAKE", "LOCALMAKE",
-        "LOCAL", "OUTPUT", "OP", "STOP",
-    )
+    private val KEYWORDS = logo.lexer.LogoKeywords.Keywords
 
     fun computeCompletions(position: Position, parseResult: Parser.ParseResult): List<CompletionItem> {
         val program = parseResult.program
@@ -80,30 +77,30 @@ object CompletionProvider {
         val variables = mutableSetOf<String>()
         for (node in path) {
             when (node) {
-                is Program -> {
-                    // Global variables (top-level MAKE, not inside procedures)
-                    for (stmt in node.statements) {
-                        if (stmt is VariableAssignment) {
-                            variables += stmt.nameToken.text.removePrefix("\"")
-                        }
-                    }
-                }
+                is Program -> walkSkippingProcedures(node, variables)
                 is ProcedureDefinition -> {
                     node.params.mapTo(variables) { it.text.removePrefix(":") }
-                    // Walk entire procedure body to find variables in nested blocks
-                    for (inner in node.walk()) {
-                        when (inner) {
-                            is VariableAssignment -> variables += inner.nameToken.text.removePrefix("\"")
-                            is LocalDeclaration -> inner.names.mapTo(variables) { it.text.removePrefix("\"") }
-                            else -> {}
-                        }
+                    for (stmt in node.body) {
+                        walkSkippingProcedures(stmt, variables)
                     }
                 }
-                is ForStatement -> variables += node.varName.text
                 else -> {}
             }
         }
         return variables
+    }
+
+    private fun walkSkippingProcedures(node: Node, variables: MutableSet<String>) {
+        when (node) {
+            is ProcedureDefinition -> return
+            is VariableAssignment -> variables += node.nameToken.text.removePrefix("\"")
+            is LocalDeclaration -> node.names.mapTo(variables) { it.text.removePrefix("\"") }
+            is ForStatement -> variables += node.varName.text
+            else -> {}
+        }
+        for (child in node.children()) {
+            walkSkippingProcedures(child, variables)
+        }
     }
 
     private fun collectProcedures(program: Program): List<Pair<String, Int>> {

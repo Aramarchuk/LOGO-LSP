@@ -18,3 +18,4 @@ for [ j 0 51 1 ]  [
  make "mod :
  ```
 Pointer was detected, sline and bit not.
+10. Keywords are used in different places as independent lists - should be one.
