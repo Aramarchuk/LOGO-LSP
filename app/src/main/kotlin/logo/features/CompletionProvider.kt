@@ -3,10 +3,12 @@ package logo.features
 import org.eclipse.lsp4j.CompletionItem
 import org.eclipse.lsp4j.CompletionItemKind
 import org.eclipse.lsp4j.Position
+import logo.parser.BooleanLiteral
 import logo.parser.CommandCall
 import logo.parser.ForStatement
 import logo.parser.LocalDeclaration
 import logo.parser.Node
+import logo.parser.NumberLiteral
 import logo.parser.Parser
 import logo.parser.ProcedureDefinition
 import logo.parser.Program
@@ -28,17 +30,16 @@ object CompletionProvider {
         val path = program.findNodePath(position.line, position.character)
         val deepestNode = path.lastOrNull()
 
-        if (deepestNode is VariableRef) {
-            val prefix = deepestNode.token.text.removePrefix(":")
-            return variableCompletions(path, prefix)
+        return when (deepestNode) {
+            is VariableRef -> {
+                val prefix = deepestNode.token.text.removePrefix(":")
+                variableCompletions(path, prefix)
+            }
+            is CommandCall -> commandCompletions(program, deepestNode.nameToken.text)
+            is NumberLiteral, is WordLiteral, is BooleanLiteral -> emptyList()
+            is Program, is ProcedureDefinition, null -> commandCompletions(program, "")
+            else -> emptyList()
         }
-
-        val prefix = when (deepestNode) {
-            is CommandCall -> deepestNode.nameToken.text
-            is WordLiteral -> deepestNode.token.text
-            else -> ""
-        }
-        return commandCompletions(program, prefix)
     }
 
     // -- Completion by context --
