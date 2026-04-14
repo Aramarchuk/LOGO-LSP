@@ -37,7 +37,13 @@ Source text → Lexer → Tokens → Parser → AST (with spans) → LSP feature
 - **Full document sync** — re-lex and re-parse on every edit (LOGO files are small)
 - **Two-pass parsing** — Pass 1 scans procedure arities, Pass 2 parses with known arities (needed for arity-dependent parsing)
 - **AST with spans** — every node tracks source position for cursor-to-node mapping
-- **Case-insensitive** — all lookups normalized to uppercase
+
+## Key decisions
+- Turns out it's quite hard to organize GoToDeclaration in LOGO, while there is no difference
+between declaration and assignment of the variable. I've come out with some compromise.
+I'm searching for all MAKE keywords in every procedure and control-flow, but trying to sort and filter them.
+- LSP4J supports asynchronous computations and incremental parsing, but I've decided that support
+such things would be overengineering for this task.
 
 ## Project layout
 
