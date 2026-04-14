@@ -9,7 +9,7 @@ to avoid repeated AST traversal on large procedures.
 7. ~~Test operator "%"~~
 8. ~~collectScopedVariables still collects all variables in FOR loops
 and works inconsistent with MAKE.~~
-9. Numbers still give me every possible command as suggestion.
+9. ~~Numbers still give me every possible command as suggestion.~~
 ```
 make "pointer :pointer+1
 make "sline item :pointer :video
