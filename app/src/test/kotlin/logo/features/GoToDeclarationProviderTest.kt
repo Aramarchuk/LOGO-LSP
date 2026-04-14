@@ -8,12 +8,11 @@ import org.junit.jupiter.api.Test
 
 class GoToDeclarationProviderTest {
 
-    private fun findDecl(source: String, line: Int, col: Int): Pair<Int, Int>? {
+    private fun findDecls(source: String, line: Int, col: Int): List<Pair<Int, Int>> {
         val tokens = Lexer(source).tokenize()
         val result = Parser(tokens).parse()
-        val locations = GoToDeclarationProvider.findDeclaration("test.logo", Position(line, col), result)
-        val loc = locations.firstOrNull() ?: return null
-        return loc.range.start.line to loc.range.start.character
+        return GoToDeclarationProvider.findDeclaration("test.logo", Position(line, col), result)
+            .map { it.range.start.line to it.range.start.character }
     }
 
     // -- Variable declarations --
@@ -21,69 +20,85 @@ class GoToDeclarationProviderTest {
     @Test
     fun `goto procedure parameter`() {
         val source = "TO square :size\n  FD :size\nEND"
-        // Click on :size in FD :size (line 1, col 5)
-        val target = findDecl(source, 1, 5)
-        // Should jump to :size in param list (line 0, col 10)
-        assertEquals(0 to 10, target)
+        val targets = findDecls(source, 1, 5)
+        assertEquals(listOf(0 to 10), targets)
     }
 
     @Test
     fun `goto global make`() {
         val source = "MAKE \"x 5\nPRINT :x"
-        // Click on :x in PRINT :x (line 1, col 6)
-        val target = findDecl(source, 1, 6)
-        // Should jump to "x in MAKE "x (line 0, col 5)
-        assertEquals(0 to 5, target)
+        val targets = findDecls(source, 1, 6)
+        assertEquals(listOf(0 to 5), targets)
     }
 
     @Test
     fun `local shadows global`() {
         val source = "MAKE \"x 10\nTO test\n  LOCALMAKE \"x 5\n  PRINT :x\nEND"
-        // Click on :x in PRINT :x (line 3, col 8)
-        val target = findDecl(source, 3, 8)
-        // Should jump to LOCALMAKE "x (line 2, col 12), not global
-        assertEquals(2 to 12, target)
+        val targets = findDecls(source, 3, 8)
+        assertEquals(listOf(2 to 12), targets)
     }
 
     @Test
     fun `local declaration via LOCAL`() {
         val source = "TO test\n  LOCAL \"a\n  MAKE \"a 5\n  PRINT :a\nEND"
-        // Click on :a in PRINT :a (line 3, col 8)
-        val target = findDecl(source, 3, 8)
-        // Should jump to LOCAL "a (line 1, col 8)
-        assertEquals(1 to 8, target)
+        val targets = findDecls(source, 3, 8)
+        assertEquals(listOf(1 to 8), targets)
     }
 
     @Test
     fun `variable not found returns empty`() {
         val source = "PRINT :unknown"
-        val target = findDecl(source, 0, 6)
-        assertNull(target)
+        val targets = findDecls(source, 0, 6)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
     fun `make after local goes to local not make`() {
         val source = "TO test\n  LOCAL \"a\n  MAKE \"a 5\n  PRINT :a\nEND"
-        // Click on :a in PRINT :a (line 3)
-        val target = findDecl(source, 3, 8)
-        // Should jump to LOCAL "a (line 1, col 8), NOT to MAKE "a (line 2)
-        assertEquals(1 to 8, target)
-        assertNotEquals(2 to 7, target)
+        val targets = findDecls(source, 3, 8)
+        assertEquals(listOf(1 to 8), targets)
     }
 
     @Test
-    fun `make without local goes to make`() {
+    fun `procedure level make is not used before global and other-procedure fallback`() {
         val source = "TO test\n  MAKE \"a 5\n  PRINT :a\nEND"
-        val target = findDecl(source, 2, 8)
-        // No LOCAL — should go to MAKE "a (line 1, col 7)
-        assertEquals(1 to 7, target)
+        val targets = findDecls(source, 2, 8)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
     fun `case insensitive variable lookup`() {
         val source = "MAKE \"Size 5\nPRINT :size"
-        val target = findDecl(source, 1, 6)
-        assertEquals(0 to 5, target)
+        val targets = findDecls(source, 1, 6)
+        assertEquals(listOf(0 to 5), targets)
+    }
+
+    @Test
+    fun `inside for resolves to for header variable`() {
+        val source = "FOR [i 1 3] [PRINT :i]"
+        val targets = findDecls(source, 0, 19)
+        assertEquals(listOf(0 to 5), targets)
+    }
+
+    @Test
+    fun `outside for can resolve to global for variable in possible list`() {
+        val source = "FOR [i 1 3] [PRINT :i]\nPRINT :i"
+        val targets = findDecls(source, 1, 6)
+        assertEquals(listOf(0 to 5), targets)
+    }
+
+    @Test
+    fun `ifelse global make in both branches returns both`() {
+        val source = "IFELSE 1=1 [MAKE \"x 1] [MAKE \"x 2]\nPRINT :x"
+        val targets = findDecls(source, 1, 6)
+        assertEquals(listOf(0 to 17, 0 to 29), targets)
+    }
+
+    @Test
+    fun `ifelse procedure locals in both branches return both`() {
+        val source = "TO test\n  IFELSE 1=1 [LOCALMAKE \"x 1] [LOCAL \"x]\n  PRINT :x\nEND"
+        val targets = findDecls(source, 2, 8)
+        assertEquals(listOf(1 to 24, 1 to 37), targets)
     }
 
     // -- Procedure declarations --
@@ -91,33 +106,29 @@ class GoToDeclarationProviderTest {
     @Test
     fun `goto procedure definition`() {
         val source = "TO square :size\n  REPEAT 4 [FD :size RT 90]\nEND\nsquare 100"
-        // Click on square in "square 100" (line 3, col 0)
-        val target = findDecl(source, 3, 0)
-        // Should jump to "square" in TO square (line 0, col 3)
-        assertEquals(0 to 3, target)
+        val targets = findDecls(source, 3, 0)
+        assertEquals(listOf(0 to 3), targets)
     }
 
     @Test
     fun `goto procedure forward reference`() {
         val source = "draw\nTO draw\n  FD 100\nEND"
-        // Click on draw call (line 0, col 0)
-        val target = findDecl(source, 0, 0)
-        // Should jump to "draw" in TO draw (line 1, col 3)
-        assertEquals(1 to 3, target)
+        val targets = findDecls(source, 0, 0)
+        assertEquals(listOf(1 to 3), targets)
     }
 
     @Test
     fun `procedure not found returns empty`() {
         val source = "unknown"
-        val target = findDecl(source, 0, 0)
-        assertNull(target)
+        val targets = findDecls(source, 0, 0)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
     fun `case insensitive procedure lookup`() {
         val source = "TO MyProc\n  FD 100\nEND\nmyproc"
-        val target = findDecl(source, 3, 0)
-        assertEquals(0 to 3, target)
+        val targets = findDecls(source, 3, 0)
+        assertEquals(listOf(0 to 3), targets)
     }
 
     // -- Global fallback edge cases --
@@ -125,32 +136,35 @@ class GoToDeclarationProviderTest {
     @Test
     fun `localmake inside procedure not visible globally`() {
         val source = "TO test\n  LOCALMAKE \"x 5\nEND\nPRINT :x"
-        // :x outside procedure — LOCALMAKE "x is local, should NOT be found
-        val target = findDecl(source, 3, 6)
-        assertNull(target)
+        val targets = findDecls(source, 3, 6)
+        assertTrue(targets.isEmpty())
     }
 
     @Test
-    fun `make inside procedure not visible outside`() {
+    fun `make inside procedure is visible in other-procedure fallback`() {
         val source = "TO test\n  MAKE \"x 5\nEND\nPRINT :x"
-        // :x outside procedure — MAKE "x is inside another procedure, not reachable from path
-        val target = findDecl(source, 3, 6)
-        assertNull(target)
+        val targets = findDecls(source, 3, 6)
+        assertEquals(listOf(1 to 7), targets)
     }
 
     @Test
-    fun `local declaration inside procedure not visible globally`() {
+    fun `other procedure fallback ignores local declaration and finds make`() {
         val source = "TO test\n  LOCAL \"y\n  MAKE \"y 5\nEND\nPRINT :y"
-        // LOCAL "y makes it local — neither LOCAL nor MAKE should be found globally
-        val target = findDecl(source, 4, 6)
-        assertNull(target)
+        val targets = findDecls(source, 4, 6)
+        assertEquals(listOf(2 to 7), targets)
     }
 
     @Test
     fun `nested procedure variables are not visible in outer procedure`() {
         val source = "TO outer\n  TO inner\n    LOCALMAKE \"x 1\n  END\n  PRINT :x\nEND"
-        // :x is in outer procedure; LOCALMAKE "x exists only inside nested (invalid) inner procedure
-        val target = findDecl(source, 4, 8)
-        assertNull(target)
+        val targets = findDecls(source, 4, 8)
+        assertTrue(targets.isEmpty())
+    }
+
+    @Test
+    fun `test logo file case - global i resolves to for header`() {
+        val source = "MAKE \"pointer 0\nFOR [i 10 10 5] [PRINT :i]\nPRINT :pointer\nTO square :sq\n    PRINT :sq\nEND\n\nPRINT :i\nWORD 1 1"
+        val targets = findDecls(source, 7, 6)
+        assertEquals(listOf(1 to 5), targets)
     }
 }
