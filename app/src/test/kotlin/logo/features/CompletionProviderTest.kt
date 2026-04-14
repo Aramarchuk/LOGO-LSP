@@ -40,6 +40,20 @@ class CompletionProviderTest {
     }
 
     @Test
+    fun `whitespace only line returns command completions`() {
+        val items = complete("   ", 0, 3)
+        assertTrue(items.contains("FORWARD"))
+        assertTrue(items.contains("FOR"))
+    }
+
+    @Test
+    fun `no command completion while typing number literal`() {
+        val items = complete("PRINT 12", 0, 7)
+        assertFalse(items.contains("FORWARD"))
+        assertFalse(items.contains("PRINT"))
+    }
+
+    @Test
     fun `variable completion inside procedure`() {
         val source = """
             TO square :size

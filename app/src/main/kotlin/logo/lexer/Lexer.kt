@@ -107,7 +107,7 @@ class Lexer(private val source: String) {
             advance()
         }
         val text = source.substring(start, pos)
-        val type = LogoKeywords.MapOfKeywords[text.uppercase(Locale.ROOT)] ?: TokenType.WORD
+        val type = LogoKeywords.mapOfKeywords[text.uppercase(Locale.ROOT)] ?: TokenType.WORD
         return Token(type, text, line, startCol)
     }
 

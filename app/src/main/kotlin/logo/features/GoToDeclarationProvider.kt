@@ -18,6 +18,11 @@ import java.util.Locale
 
 object GoToDeclarationProvider {
 
+    private data class ProcedureVariableCandidates(
+        var firstLocalMatch: Token? = null,
+        var firstMakeMatch: Token? = null,
+    )
+
     fun findDeclaration(uri: String, position: Position, parseResult: Parser.ParseResult): List<Location> {
         val path = parseResult.program.findNodePath(position.line, position.character)
         val nodeAtCursor = path.lastOrNull()
@@ -32,7 +37,7 @@ object GoToDeclarationProvider {
     // -- Variable resolution: walk path from cursor to root --
 
     private fun findVariableDeclaration(ref: VariableRef, path: List<Node>): Token? {
-        val name = ref.token.text.removePrefix(":").normalize()
+        val name = ref.token.normalizedVariableRefName()
         for (node in path.asReversed()) {
             when (node) {
                 is ProcedureDefinition -> findVariableInProcedure(name, node)?.let { return it }
@@ -44,43 +49,57 @@ object GoToDeclarationProvider {
     }
 
     private fun findVariableInProcedure(name: String, proc: ProcedureDefinition): Token? {
-        return findLocalDeclaration(name, proc)
-            ?: findParameter(name, proc)
-            ?: findMakeInProcedure(name, proc)
+        val candidates = collectProcedureVariableCandidates(name, proc)
+        return candidates.firstLocalMatch ?: findParameter(name, proc) ?: candidates.firstMakeMatch
     }
 
-    private fun findLocalDeclaration(name: String, proc: ProcedureDefinition): Token? {
+    private fun collectProcedureVariableCandidates(name: String, proc: ProcedureDefinition): ProcedureVariableCandidates {
+        val candidates = ProcedureVariableCandidates()
         for (node in proc.walk()) {
             when (node) {
-                is VariableAssignment -> {
-                    if (node.local && node.nameToken.text.removePrefix("\"").normalize() == name)
-                        return node.nameToken
-                }
-                is LocalDeclaration -> {
-                    val match = node.names.firstOrNull { it.text.removePrefix("\"").normalize() == name }
-                    if (match != null) return match
-                }
+                is VariableAssignment -> collectVariableAssignmentCandidate(name, node, candidates)
+                is LocalDeclaration -> collectLocalDeclarationCandidate(name, node, candidates)
                 else -> {}
             }
         }
-        return null
+
+        return candidates
+    }
+
+    private fun collectVariableAssignmentCandidate(
+        name: String,
+        assignment: VariableAssignment,
+        candidates: ProcedureVariableCandidates,
+    ) {
+        if (assignment.nameToken.normalizedVariableWordName() != name) return
+
+        if (assignment.local && candidates.firstLocalMatch == null) {
+            candidates.firstLocalMatch = assignment.nameToken
+        }
+        if (!assignment.local && candidates.firstMakeMatch == null) {
+            candidates.firstMakeMatch = assignment.nameToken
+        }
+    }
+
+    private fun collectLocalDeclarationCandidate(
+        name: String,
+        declaration: LocalDeclaration,
+        candidates: ProcedureVariableCandidates,
+    ) {
+        if (candidates.firstLocalMatch != null) return
+
+        candidates.firstLocalMatch = declaration.names.firstOrNull { it.normalizedVariableWordName() == name }
     }
 
     private fun findParameter(name: String, proc: ProcedureDefinition): Token? {
-        return proc.params.firstOrNull { it.text.removePrefix(":").normalize() == name }
+        return proc.params.firstOrNull { it.normalizedVariableRefName() == name }
     }
 
-    private fun findMakeInProcedure(name: String, proc: ProcedureDefinition): Token? {
-        return proc.walk()
-            .filterIsInstance<VariableAssignment>()
-            .firstOrNull { it.nameToken.text.removePrefix("\"").normalize() == name }
-            ?.nameToken
-    }
 
     private fun findTopLevelMake(name: String, program: Program): Token? {
         return program.statements
             .filterIsInstance<VariableAssignment>()
-            .firstOrNull { it.nameToken.text.removePrefix("\"").normalize() == name }
+            .firstOrNull { it.nameToken.normalizedVariableWordName() == name }
             ?.nameToken
     }
 
@@ -97,6 +116,10 @@ object GoToDeclarationProvider {
     // -- Helpers --
 
     private fun String.normalize(): String = uppercase(Locale.ROOT)
+
+    private fun Token.normalizedVariableRefName(): String = text.removePrefix(":").normalize()
+
+    private fun Token.normalizedVariableWordName(): String = text.removePrefix("\"").normalize()
 
     private fun tokenToLocation(uri: String, token: Token): Location {
         return Location(uri, Range(
